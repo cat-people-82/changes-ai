@@ -88,13 +88,20 @@ collapse.
 
 ## Installation
 
-Clone the repo and install it with pip:
+Clone the repo and install it inside a virtual environment:
 
 ```bash
 git clone https://github.com/pzanna/changes-ai.git
 cd changes-ai
+python3 -m venv .venv
+source .venv/bin/activate
 pip install .
 ```
+
+> **macOS note:** macOS ships with an older system Python and Homebrew manages its
+> own Python as an externally-managed environment. Installing without a virtual
+> environment will fail with an "externally managed" error. The steps above work
+> on all platforms.
 
 For local development:
 
