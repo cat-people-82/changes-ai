@@ -1,0 +1,46 @@
+# ---------------------------------------------------
+#
+# Changes AI Environment Variables
+#
+# ---------------------------------------------------
+
+# ---------------------------------------------------
+# API keys
+# ---------------------------------------------------
+# OpenAI API key for LLM calls (impact analysis, remediation planning, and impact-run executive summaries)
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_MODEL=your_openai_model_here
+
+# Set to 1 only if you allow usage-analysis data to be sent to hosted LLMs
+CHANGES_AI_ALLOW_COMMERCIAL_USAGE_DATA=0
+
+# Libraries.io API key for fetching package metadata and changelogs
+LIBRARIES_IO_API_KEY=your_libraries_io_api_key_here
+
+# ---------------------------------------------------
+# GitHub token
+# ---------------------------------------------------
+#  Used for accessing private repositories (if needed)
+GITHUB_TOKEN=your_github_token_here
+
+# ---------------------------------------------------
+# Application settings
+# ---------------------------------------------------
+# Local project path to scan when --source/--url is omitted
+CHANGES_AI_SOURCE_PATH=./project
+
+# Clone root for repositories passed with --url. Recommended that is NOT in the Changes AI project directory to avoid issues with git operations
+CHANGES_AI_REPO_PATH=./repos
+
+# Cache db path
+CHANGES_AI_CACHE_DB=./cache.db
+
+# Report output folder. Report files are written as report_YYYYMMDD_HHMMSS.<format>
+CHANGES_AI_REPORT_PATH=./reports
+# Html reports create a folder containing index.html and style.css
+
+# Default report format: json, table, md, html, pdf, sarif, or dot
+CHANGES_AI_REPORT_FORMAT=md
+
+# Default PDF report template: built-in template name or path to a custom CSS file
+CHANGES_AI_REPORT_TEMPLATE=corporate

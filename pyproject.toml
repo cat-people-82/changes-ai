@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "changes-ai"
+version = "0.6.2"
+description = "Evaluate package update impact with version, CVE, usage, impact, and remediation analysis."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "GPL-3.0-or-later" }
+authors = [
+    { name = "Paul Zanna" },
+]
+dependencies = [
+    "openai>=2.32.0",
+    "python-dotenv>=1.0.0",
+    "requests>=2.28.0",
+    "tomli>=2.0.0; python_version < '3.11'",
+    "weasyprint>=60",
+    "markdown>=3.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+]
+
+[project.scripts]
+changes-ai = "src.changes_ai:main"
+
+[tool.setuptools]
+packages = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
