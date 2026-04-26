@@ -66,6 +66,40 @@ dev = ["pytest>=7.0.0"]
     }
 
 
+def test_dependency_parser_ignores_tool_only_pyproject_sections():
+    content = """
+[tool.isort]
+extra_standard_library = [
+    "numpy",
+    "torch",
+]
+"""
+
+    assert DependencyParser.parse(content, "pyproject") == {}
+
+
+def test_dependency_parser_handles_conda_environment_dependencies():
+    content = """
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pytorch-cuda=12.1
+  - pip
+  - pip:
+      - gymnasium==1.2.0
+      - tensorboard>=2.16
+"""
+
+    assert DependencyParser.parse(content, "conda") == {
+        "python": "==3.11",
+        "pytorch-cuda": "==12.1",
+        "pip": None,
+        "gymnasium": "==1.2.0",
+        "tensorboard": ">=2.16",
+    }
+
+
 def test_cli_version_smoke():
     result = subprocess.run(
         [sys.executable, "-m", "src.changes_ai", "--version"],

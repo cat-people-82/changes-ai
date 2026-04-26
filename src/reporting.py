@@ -232,6 +232,7 @@ def render_markdown_report(report: dict) -> str:
             "",
             "- Cached reports reflect the data available when the run was recorded.",
             "- Missing usage, unresolved usage, missing changelog evidence, and LLM fallback paths lower confidence.",
+            "- LLM-generated results are not guaranteed to be factually accurate and should be verified before being used as a basis for action.",
         ]
     )
     return "\n".join(lines).rstrip() + "\n"

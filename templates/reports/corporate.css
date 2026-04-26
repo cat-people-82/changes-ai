@@ -8,7 +8,7 @@
 
 @page {
   size: A4;
-  margin: 22mm 20mm 22mm 20mm;
+  margin: 83px 75px 83px 75px;
 
   @top-left {
     content: "Changes AI  ·  Remediation Report";
@@ -85,25 +85,25 @@ html, body { margin: 0; padding: 0; }
 
 .cover .navy-band {
   background: #0B2545;
-  padding: 35mm 25mm 25mm 25mm;
+  padding: 132px 94px 94px 94px;
   color: #ffffff;
   position: relative;
 }
 
 .cover .brand {
-  font-size: 9pt;
+  font-size: 12pt;
   letter-spacing: 0.25em;
   text-transform: uppercase;
-  color: #C9A227;
-  font-weight: 600;
-  margin-bottom: 8mm;
+  color: #E8351A;
+  font-weight: 800;
+  margin-bottom: 30px;
 }
 
 .cover h1 {
   font-size: 34pt;
   font-weight: 300;
   line-height: 1.1;
-  margin: 0 0 5mm 0;
+  margin: 0 0 18px 0;
   letter-spacing: -0.015em;
   color: #ffffff;
 }
@@ -112,20 +112,13 @@ html, body { margin: 0; padding: 0; }
   font-size: 12pt;
   font-weight: 300;
   color: #C9A227;
-  margin: 0 0 5mm 0;
-  max-width: 130mm;
+  margin: 0 0 18px 0;
+  max-width: 491px;
   line-height: 1.4;
 }
 
-.cover .navy-band-rule {
-  height: 0.5pt;
-  background: #C9A227;
-  width: 50mm;
-  margin: 5mm 0 0 0;
-}
-
 .cover .body {
-  padding: 18mm 25mm 25mm 25mm;
+  padding: 68px 94px 94px 94px;
   color: #1a1a1a;
 }
 
@@ -135,8 +128,8 @@ html, body { margin: 0; padding: 0; }
   text-transform: uppercase;
   color: #6b7280;
   font-weight: 600;
-  margin-bottom: 6mm;
-  padding-bottom: 3mm;
+  margin-bottom: 22px;
+  padding-bottom: 11px;
   border-bottom: 0.5pt solid #d1d5db;
 }
 
@@ -152,13 +145,13 @@ html, body { margin: 0; padding: 0; }
 }
 
 .cover .metadata td {
-  padding: 1.5mm 0;
+  padding: 5px 0;
   border: none;
   border-bottom: 0.25pt solid #f3f4f6;
 }
 
 .cover .metadata .label {
-  width: 55mm;
+  width: 207px;
   color: #6b7280;
   font-weight: 500;
   text-transform: uppercase;
@@ -177,13 +170,13 @@ html, body { margin: 0; padding: 0; }
 }
 
 .cover .footer {
-  margin-top: 30mm;
+  margin-top: 113px;
   font-size: 7.5pt;
   color: #9ca3af;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   border-top: 0.25pt solid #e5e7eb;
-  padding-top: 5mm;
+  padding-top: 18px;
   display: table;
   width: 100%;
 }
@@ -199,7 +192,7 @@ html, body { margin: 0; padding: 0; }
 /* ---- Body content ------------------------------------------ */
 
 main {
-  padding: 22mm 20mm;
+  padding: 83px 75px;
 }
 
 h1, h2, h3, h4 {
@@ -211,26 +204,26 @@ h1, h2, h3, h4 {
 
 h1 {
   font-size: 18pt;
-  margin: 0 0 4mm 0;
-  padding-bottom: 3mm;
+  margin: 0 0 15px 0;
+  padding-bottom: 11px;
   border-bottom: 1pt solid #0B2545;
 }
 
 h2 {
   font-size: 13pt;
-  margin: 10mm 0 3mm 0;
-  padding-top: 3mm;
+  margin: 37px 0 11px 0;
+  padding-top: 11px;
   border-top: 1pt solid #d1d5db;
   position: relative;
 }
 
-/* Gold accent bar above each h2 */
+/* Orange accent bar above each h2 */
 .section-rule {
   display: block;
-  width: 14pt;
-  height: 2pt;
-  background: #C9A227;
-  margin: 9mm 0 0 0;
+  width: 36pt;
+  height: 1pt;
+  background: #E8351A;;
+  margin: 48px 0 48px 0;
   break-before: page;
   page-break-before: always;
   break-after: avoid;
@@ -239,7 +232,7 @@ h2 {
 
 h3 {
   font-size: 11pt;
-  margin: 6mm 0 2mm 0;
+  margin: 22px 0 7px 0;
   color: #0B2545;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -250,8 +243,8 @@ h3 {
 .exec-summary {
   background: #f8f9fb;
   border-left: 2pt solid #0B2545;
-  padding: 5mm 7mm;
-  margin: 0 0 6mm 0;
+  padding: 18px 26px;
+  margin: 0 0 22px 0;
 }
 
 .exec-summary table {
@@ -262,7 +255,7 @@ h3 {
 }
 
 .exec-summary table td {
-  padding: 1mm 0;
+  padding: 3px 0;
   border: none;
   background: transparent;
   vertical-align: middle;
@@ -278,7 +271,7 @@ h3 {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-size: 8.5pt;
-  width: 50mm;
+  width: 188px;
   white-space: nowrap;
 }
 
@@ -292,7 +285,7 @@ h3 {
 table {
   width: 100%;
   border-collapse: collapse;
-  margin: 2mm 0 5mm 0;
+  margin: 7px 0 18px 0;
   font-size: 9pt;
   page-break-inside: avoid;
 }
@@ -305,12 +298,12 @@ thead th {
   letter-spacing: 0.08em;
   color: #6b7280;
   border-bottom: 0.75pt solid #0B2545;
-  padding: 3mm 3mm 2mm 3mm;
+  padding: 11px 11px 7px 11px;
   background: transparent;
 }
 
 tbody td {
-  padding: 2.5mm 3mm;
+  padding: 9px 11px;
   border-bottom: 0.25pt solid #e5e7eb;
   vertical-align: top;
 }
@@ -329,8 +322,8 @@ td.severity {
 
 td.severity .pill {
   display: inline-block;
-  padding: 1mm 2.5mm;
-  border-radius: 1.5mm;
+  padding: 3px 9px;
+  border-radius: 5px;
   font-size: 7.5pt;
   letter-spacing: 0.08em;
 }
@@ -348,23 +341,54 @@ tbody tr.row-MEDIUM   td:first-child { border-left: 2pt solid #B45309; }
 tbody tr.row-LOW      td:first-child { border-left: 2pt solid #1E40AF; }
 
 /* ---- Lists ------------------------------------------------- */
+.impact-analysis ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.impact-analysis li {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border-left: 2pt solid #d1d5db;
+  background: #f9fafb;
+}
+
+.impact-analysis li .item-header {
+  font-weight: 700;
+  font-size: 10.5pt;
+  margin-bottom: 4px;
+  color: #111;
+}
+
+.impact-analysis li .item-body {
+  font-size: 9.5pt;
+  color: #374151;
+  line-height: 1.5;
+}
+
+.impact-analysis li .item-citation {
+  display: block;
+  margin-top: 5px;
+  font-size: 8.5pt;
+  color: #9ca3af;
+}
 
 ul, ol {
-  margin: 1mm 0 4mm 0;
-  padding-left: 5mm;
+  margin: 3px 0 15px 0;
+  padding-left: 18px;
 }
 
 li {
-  margin: 0.5mm 0;
+  margin: 1px 0;
 }
 
 /* ---- Remediation paths ------------------------------------- */
 
 .path {
   border: 0.5pt solid #d1d5db;
-  border-radius: 1mm;
-  padding: 5mm 6mm;
-  margin: 0 0 4mm 0;
+  border-radius: 3px;
+  padding: 18px 22px;
+  margin: 0 0 15px 0;
   page-break-inside: avoid;
 }
 
@@ -372,8 +396,8 @@ li {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin-bottom: 3mm;
-  padding-bottom: 2mm;
+  margin-bottom: 11px;
+  padding-bottom: 7px;
   border-bottom: 0.25pt solid #e5e7eb;
 }
 
@@ -397,24 +421,24 @@ li {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-size: 7.5pt;
-  margin-right: 1mm;
+  margin-right: 3px;
 }
 
 .path-scores .score-value {
   color: #1a1a1a;
   font-weight: 600;
-  margin-right: 4mm;
+  margin-right: 15px;
 }
 
 .path-rationale {
   font-size: 9.5pt;
-  margin: 0 0 4mm 0;
+  margin: 0 0 15px 0;
   color: #374151;
 }
 
 .path .nofix {
-  margin-top: 3mm;
-  padding: 2.5mm 3mm;
+  margin-top: 11px;
+  padding: 9px 11px;
   background: #FEE2E2;
   border-left: 2pt solid #B91C1C;
   font-size: 8.5pt;
@@ -426,14 +450,14 @@ li {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-size: 7.5pt;
-  margin-right: 2mm;
+  margin-right: 7px;
 }
 
 /* ---- Limitations block ------------------------------------- */
 
 .limitations {
-  margin-top: 6mm;
-  padding: 4mm 5mm;
+  margin-top: 22px;
+  padding: 15px 18px;
   background: #fafbfc;
   border-left: 2pt solid #C9A227;
   font-size: 8.5pt;
@@ -453,7 +477,7 @@ li {
 .limitations h2::before { display: none; }
 
 .limitations ul {
-  margin: 1mm 0 0 0;
+  margin: 3px 0 0 0;
 }
 
 /* ---- Page-break helpers ------------------------------------ */

@@ -1,6 +1,6 @@
 # Changes AI: AI-powered impact analysis for software package updates
 
-[![Version](https://img.shields.io/badge/version-0.6.2-blue)](https://github.com/pzanna/changes-ai)
+[![Version](https://img.shields.io/badge/version-0.6.3-blue)](https://github.com/pzanna/changes-ai)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
 [![GitHub last commit](https://img.shields.io/github/last-commit/pzanna/changes-ai)](https://github.com/pzanna/changes-ai/commits/main)
@@ -11,6 +11,8 @@
 </p>
 
 ## News
+
+- **[27/04/2026]** Bug fix release (v0.6.3) — Mermaid graphs now render in non-markdown reports.
 
 - **[26/04/2026]** 🎉 First preview release (v0.6.2)!!
 
@@ -254,6 +256,7 @@ changes-ai --source /path/to/project \
 | `requirements/main.txt` | pip |
 | `requirements/prod.txt` | pip |
 | `pyproject.toml` | PEP 621 (`[project.dependencies]`) and Poetry (`[tool.poetry.dependencies]`) |
+| `environment.yml` | Conda environment manifest (`dependencies`, including nested `pip:` lists) |
 | `uv.lock` | uv lockfile (TOML) |
 
 ## Sample output
@@ -445,7 +448,7 @@ commercial endpoints require explicit opt-in. For stricter handling, either:
 
 ## Roadmap
 
-The current release (**v0.6.2**) covers package discovery, version mapping,
+The current release (**v0.6.3**) covers package discovery, version mapping,
 dependency charts, CVE scanning, AST-based usage analysis, LLM-backed
 impact analysis, the LLM remediation planner, SQLite-backed libraries.io, OSV,
 PyPI, and LLM response caching, offline/refresh controls, stage-focused `scan`,

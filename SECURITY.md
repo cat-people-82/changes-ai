@@ -7,6 +7,7 @@ issues should be handled carefully.
 
 | Version | Supported |
 |---|---|
+| 0.6.3 preview | Yes |
 | 0.6.2 preview | Yes |
 | Older preview versions | No |
 
