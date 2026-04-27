@@ -502,7 +502,7 @@ def test_cached_html_report_bundle_embeds_graphviz_svg(monkeypatch):
     monkeypatch.setattr(
         reporting_module,
         "render_svg_graph",
-        lambda edges, graph_name="changes_ai": "<svg><text>graph</text></svg>",
+        lambda edges, graph_name="changes_ai", **kwargs: "<svg><text>graph</text></svg>",
     )
 
     bundle = render_cached_html_report_bundle(
