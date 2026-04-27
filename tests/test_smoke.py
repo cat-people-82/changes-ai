@@ -9,6 +9,7 @@ import src.reporting as reporting_module
 from src.cache import SQLiteCache
 from src.changes_ai import (
     DependencyParser,
+    _build_graph_packages,
     _build_cve_scan_packages,
     _executive_summary_api_key,
     _format_skipped_cve_packages,
@@ -152,6 +153,31 @@ def test_cve_scan_packages_uses_venv_versions_for_range_specs():
     assert skipped == []
 
 
+def test_build_graph_packages_includes_installed_packages_for_cve_runs():
+    graph_packages = _build_graph_packages(
+        {"requests": ">=2.28.0", "flask": None},
+        venv_pkgs={"requests": "2.32.5", "urllib3": "2.5.0", "black": "25.9.0"},
+        include_installed=True,
+    )
+
+    assert graph_packages == {
+        "requests": ">=2.28.0",
+        "flask": None,
+        "urllib3": "2.5.0",
+        "black": "25.9.0",
+    }
+
+
+def test_build_graph_packages_keeps_manifest_only_when_not_requested():
+    graph_packages = _build_graph_packages(
+        {"requests": ">=2.28.0", "flask": None},
+        venv_pkgs={"urllib3": "2.5.0", "black": "25.9.0"},
+        include_installed=False,
+    )
+
+    assert graph_packages == {"requests": ">=2.28.0", "flask": None}
+
+
 def test_report_css_template_path_resolves():
     css_path = _resolve_css_path("corporate")
 
@@ -262,6 +288,195 @@ def test_render_dot_graph_wraps_large_root_fanout_into_rows():
     assert '{ rank=same; "__changes_ai_wrap_0_0"' in dot_graph
     assert '"__changes_ai_wrap_0_0" -> "__changes_ai_wrap_0_1" [style=invis, weight=100];' in dot_graph
     assert '"demo" -> "dep0" [constraint=false];' in dot_graph
+
+
+def test_report_dependency_graph_uses_severity_states_not_upgrades(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_render_svg_graph(edges, *, graph_name="changes_ai", package_states=None, rankdir=None):
+        captured["edges"] = edges
+        captured["package_states"] = package_states
+        return "<svg><text>graph</text></svg>"
+
+    monkeypatch.setattr(reporting_module, "render_svg_graph", fake_render_svg_graph)
+
+    bundle = render_cached_html_report_bundle(
+        {
+            "run": {"id": 1, "locator": "demo"},
+            "packages": [{"name": "requests"}],
+            "currency": [],
+            "graph": {"edges": [{"parent": "demo", "child": "requests"}]},
+            "vulnerabilities": [
+                {
+                    "package": "requests",
+                    "severity": "HIGH",
+                    "cve_id": "CVE-1",
+                    "installed_version": "2.31.0",
+                    "fixed_versions": ["2.32.0"],
+                }
+            ],
+            "usage": {"records": [], "unresolved": []},
+            "impact_reports": [],
+            "remediation_paths": [
+                {
+                    "path_type": "balanced",
+                    "upgrades": [{"package": "requests"}],
+                    "cves_no_fix": [],
+                }
+            ],
+            "executive_summary": {},
+        }
+    )
+
+    assert captured["edges"] == [{"parent": "demo", "child": "requests"}]
+    assert captured["package_states"] == {"requests": "high"}
+    assert "<svg><text>graph</text></svg>" in bundle["index.html"]
+    assert "High" in bundle["index.html"]
+
+
+def test_report_dependency_graph_filters_irrelevant_nodes(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_render_svg_graph(edges, *, graph_name="changes_ai", package_states=None, rankdir=None):
+        captured["edges"] = edges
+        return "<svg><text>graph</text></svg>"
+
+    monkeypatch.setattr(reporting_module, "render_svg_graph", fake_render_svg_graph)
+
+    render_cached_html_report_bundle(
+        {
+            "run": {"id": 1, "locator": "demo"},
+            "packages": [{"name": "requests"}],
+            "currency": [],
+            "graph": {
+                "edges": [
+                    {"parent": "demo", "child": "requests"},
+                    {"parent": "requests", "child": "urllib3"},
+                    {"parent": "demo", "child": "flask"},
+                    {"parent": "flask", "child": "jinja2"},
+                ]
+            },
+            "vulnerabilities": [
+                {
+                    "package": "urllib3",
+                    "severity": "HIGH",
+                    "cve_id": "CVE-1",
+                    "installed_version": "2.5.0",
+                    "fixed_versions": ["2.6.0"],
+                }
+            ],
+            "usage": {"records": [], "unresolved": []},
+            "impact_reports": [
+                {
+                    "package": "urllib3",
+                    "installed_version": "2.5.0",
+                    "candidate_version": "2.6.0",
+                    "probable_breakage": "LOW",
+                    "breakage_score": 0.2,
+                    "confidence": "MEDIUM",
+                }
+            ],
+            "remediation_paths": [],
+            "executive_summary": {},
+        }
+    )
+
+    assert captured["edges"] == [
+        {"parent": "demo", "child": "requests"},
+        {"parent": "requests", "child": "urllib3"},
+    ]
+
+
+def test_report_dependency_graph_uses_impact_summary_packages_only(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_render_svg_graph(edges, *, graph_name="changes_ai", package_states=None, rankdir=None):
+        captured["edges"] = edges
+        return "<svg><text>graph</text></svg>"
+
+    monkeypatch.setattr(reporting_module, "render_svg_graph", fake_render_svg_graph)
+
+    bundle = render_cached_html_report_bundle(
+        {
+            "run": {"id": 1, "locator": "demo"},
+            "packages": [{"name": "requests"}],
+            "currency": [],
+            "graph": {
+                "edges": [
+                    {"parent": "demo", "child": "requests"},
+                    {"parent": "requests", "child": "urllib3"},
+                    {"parent": "demo", "child": "flask"},
+                    {"parent": "flask", "child": "jinja2"},
+                ]
+            },
+            "vulnerabilities": [
+                {
+                    "package": "urllib3",
+                    "severity": "HIGH",
+                    "cve_id": "CVE-1",
+                    "installed_version": "2.5.0",
+                    "fixed_versions": ["2.6.0"],
+                },
+                {
+                    "package": "flask",
+                    "severity": "LOW",
+                    "cve_id": "CVE-2",
+                    "installed_version": "3.1.2",
+                    "fixed_versions": ["3.1.3"],
+                },
+            ],
+            "usage": {"records": [], "unresolved": []},
+            "impact_reports": [
+                {
+                    "package": "urllib3",
+                    "installed_version": "2.5.0",
+                    "candidate_version": "2.6.0",
+                    "probable_breakage": "LOW",
+                    "breakage_score": 0.2,
+                    "confidence": "MEDIUM",
+                }
+            ],
+            "remediation_paths": [],
+            "executive_summary": {},
+        }
+    )
+
+    assert captured["edges"] == [
+        {"parent": "requests", "child": "urllib3"},
+    ]
+    assert "High" in bundle["index.html"]
+    assert "Low" not in bundle["index.html"]
+
+
+def test_dependency_graph_key_renders_severity_and_no_fix_states():
+    key_html = reporting_module._render_dependency_graph_key(
+        {
+            "vulnerabilities": [
+                {
+                    "package": "requests",
+                    "severity": "HIGH",
+                    "cve_id": "CVE-1",
+                },
+                {
+                    "package": "flask",
+                    "severity": "CRITICAL",
+                    "cve_id": "CVE-2",
+                },
+            ],
+            "remediation_paths": [
+                {
+                    "path_type": "balanced",
+                    "upgrades": [{"package": "requests"}],
+                    "cves_no_fix": ["CVE-2"],
+                }
+            ],
+        }
+    )
+
+    assert key_html is not None
+    assert "High" in key_html
+    assert "No fix available" in key_html
+    assert "Upgraded" not in key_html
 
 
 def test_report_html_renders_executive_summary_narrative():

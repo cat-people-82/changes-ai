@@ -192,7 +192,13 @@ html, body { margin: 0; padding: 0; }
 /* ---- Body content ------------------------------------------ */
 
 main {
-  padding: 83px 75px;
+  padding: 0;
+}
+
+@media screen {
+  main {
+    padding: 32px 40px;
+  }
 }
 
 h1, h2, h3, h4 {

@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import json
 
-from .graph import build_package_states, render_dot_graph, render_svg_graph
+from .graph import (
+    build_package_states,
+    render_dot_graph,
+    render_svg_graph,
+)
 from .render_report import render_report_html_bundle, render_report_pdf
 
 SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "UNKNOWN": 4}
@@ -34,16 +38,67 @@ def _group_by(items: list[dict], key: str) -> dict[str, list[dict]]:
     return grouped
 
 
+def _report_dependency_graph_states(report: dict) -> dict[str, str]:
+    """Return report-graph package states.
+
+    HTML/PDF reports keep the pre-remediation severity view so vulnerable
+    packages remain colour-coded by severity in the dependency graph.
+    ``no_fix`` markers are preserved, but upgrade-path styling is not
+    applied in this view.
+    """
+    return build_package_states(report, include_upgrades=False)
+
+
+def _report_dependency_graph_focus(report: dict) -> set[str]:
+    """Return the package names that should drive the report graph.
+
+    Prefer the packages surfaced in the Impact Summary. When there are no
+    impact reports, fall back to the packages that carry vulnerability
+    state in the report.
+    """
+    impacts = report.get("impact_reports") or []
+    focus = {
+        str(item.get("package") or "")
+        for item in impacts
+        if str(item.get("package") or "").strip()
+    }
+    if focus:
+        return focus
+    return set(_report_dependency_graph_states(report))
+
+
+def _filter_report_graph_edges(
+    edges: list[dict], focus_packages: set[str]
+) -> list[dict]:
+    """Keep only focus packages and their immediate parent context."""
+    if not focus_packages:
+        return list(edges)
+
+    focus_norm = {str(name).lower().replace("_", "-") for name in focus_packages}
+    keep: set[tuple[str, str]] = set()
+    for edge in edges:
+        parent = str(edge.get("parent") or "")
+        child = str(edge.get("child") or "")
+        if child.lower().replace("_", "-") in focus_norm:
+            keep.add((parent, child))
+    return [{"parent": parent, "child": child} for parent, child in sorted(keep)]
+
+
 def _render_dependency_graph_svg(report: dict) -> str | None:
     run = report.get("run", {})
     graph = report.get("graph", {})
     edges = graph.get("edges") or []
     if not edges:
         return None
+    package_states = _report_dependency_graph_states(report)
+    focus_packages = _report_dependency_graph_focus(report)
+    graph_edges = _filter_report_graph_edges(edges, focus_packages)
+    if not graph_edges:
+        graph_edges = edges
     return render_svg_graph(
-        edges,
+        graph_edges,
         graph_name=str(run.get("locator") or "changes_ai"),
-        package_states=build_package_states(report),
+        package_states=package_states,
     )
 
 
@@ -53,14 +108,14 @@ def _render_dependency_graph_svg(report: dict) -> str | None:
 # remediation actions).
 _GRAPH_KEY_SEVERITIES = [
     ("critical", "Critical", "#FEE2E2", "#991B1B"),
-    ("high",     "High",     "#FFEDD5", "#9A3412"),
-    ("medium",   "Medium",   "#FEF3C7", "#92400E"),
-    ("low",      "Low",      "#DBEAFE", "#1E40AF"),
-    ("unknown",  "Unknown",  "#F3F4F6", "#4B5563"),
+    ("high", "High", "#FFEDD5", "#9A3412"),
+    ("medium", "Medium", "#FEF3C7", "#92400E"),
+    ("low", "Low", "#DBEAFE", "#1E40AF"),
+    ("unknown", "Unknown", "#F3F4F6", "#4B5563"),
 ]
 _GRAPH_KEY_ACTIONS = [
-    ("upgraded", "Upgraded",        "#047857"),
-    ("no_fix",   "No fix available", "#7F1D1D"),
+    ("upgraded", "Upgraded", "#047857"),
+    ("no_fix", "No fix available", "#7F1D1D"),
 ]
 
 
@@ -71,7 +126,15 @@ def _render_dependency_graph_key(report: dict) -> str | None:
     actually appear in the current report. A run with no CRITICAL
     findings won't show a CRITICAL swatch.
     """
-    states = build_package_states(report)
+    states = _report_dependency_graph_states(report)
+    focus_packages = _report_dependency_graph_focus(report)
+    if focus_packages:
+        focus_norm = {str(name).lower().replace("_", "-") for name in focus_packages}
+        states = {
+            name: state
+            for name, state in states.items()
+            if str(name).lower().replace("_", "-") in focus_norm
+        }
     if not states:
         return None
 
@@ -82,8 +145,16 @@ def _render_dependency_graph_key(report: dict) -> str | None:
             sev = record.get("severity")
             act = record.get("action")
         else:
-            sev = record
-            act = None
+            value = str(record).lower()
+            if value in {"critical", "high", "medium", "low", "unknown"}:
+                sev = value
+                act = None
+            elif value in {"upgraded", "no_fix"}:
+                sev = None
+                act = value
+            else:
+                sev = value
+                act = None
         if sev:
             present_severities.add(sev.lower())
         if act:
@@ -101,7 +172,7 @@ def _render_dependency_graph_key(report: dict) -> str | None:
             f'<span class="key-item">'
             f'<span class="key-swatch" style="background:{fill};color:{text};'
             f'border-color:{text}">{label}</span>'
-            f'</span>'
+            f"</span>"
         )
 
     for key, label, border in _GRAPH_KEY_ACTIONS:
@@ -111,7 +182,7 @@ def _render_dependency_graph_key(report: dict) -> str | None:
             f'<span class="key-item">'
             f'<span class="key-swatch key-swatch--border" '
             f'style="border-color:{border}">{label}</span>'
-            f'</span>'
+            f"</span>"
         )
 
     if not items:
@@ -119,9 +190,7 @@ def _render_dependency_graph_key(report: dict) -> str | None:
 
     return (
         '<div class="dependency-graph-key">'
-        '<span class="key-label">Key:</span>'
-        + "".join(items)
-        + '</div>'
+        '<span class="key-label">Key:</span>' + "".join(items) + "</div>"
     )
 
 

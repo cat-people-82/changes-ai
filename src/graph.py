@@ -26,7 +26,7 @@ from typing import Iterable
 
 # Graph-size thresholds for engine selection. Tuned for A4 portrait pages.
 SMALL_GRAPH_NODES = 12
-LARGE_GRAPH_NODES = 80
+LARGE_GRAPH_NODES = 40
 
 # unflatten parameters for medium graphs.
 #   -l N  : maximum chain length before wrapping
@@ -51,30 +51,31 @@ PALETTE = {
 # of the same document as the vulnerability and impact tables.
 STATE_PALETTE: dict[str, dict[str, str]] = {
     "critical": {"fill": "#FEE2E2", "border": "#B91C1C", "text": "#991B1B"},
-    "high":     {"fill": "#FFEDD5", "border": "#C2410C", "text": "#9A3412"},
-    "medium":   {"fill": "#FEF3C7", "border": "#B45309", "text": "#92400E"},
-    "low":      {"fill": "#DBEAFE", "border": "#1E40AF", "text": "#1E40AF"},
+    "high": {"fill": "#FFEDD5", "border": "#C2410C", "text": "#9A3412"},
+    "medium": {"fill": "#FEF3C7", "border": "#B45309", "text": "#92400E"},
+    "low": {"fill": "#DBEAFE", "border": "#1E40AF", "text": "#1E40AF"},
     "upgraded": {"fill": "#D1FAE5", "border": "#047857", "text": "#065F46"},
-    "no_fix":   {"fill": "#FEE2E2", "border": "#7F1D1D", "text": "#7F1D1D"},
-    "unknown":  {"fill": "#F3F4F6", "border": "#9CA3AF", "text": "#4B5563"},
+    "no_fix": {"fill": "#FEE2E2", "border": "#7F1D1D", "text": "#7F1D1D"},
+    "unknown": {"fill": "#F3F4F6", "border": "#9CA3AF", "text": "#4B5563"},
 }
 
 # Aliases so callers can pass the OSV severity strings directly.
 STATE_ALIASES = {
     "CRITICAL": "critical",
-    "HIGH":     "high",
-    "MEDIUM":   "medium",
-    "LOW":      "low",
-    "UNKNOWN":  "unknown",
+    "HIGH": "high",
+    "MEDIUM": "medium",
+    "LOW": "low",
+    "UNKNOWN": "unknown",
     "UPGRADED": "upgraded",
-    "NO_FIX":   "no_fix",
-    "NO-FIX":   "no_fix",
+    "NO_FIX": "no_fix",
+    "NO-FIX": "no_fix",
 }
 
 
 # ---------------------------------------------------------------------------
 # Edge construction
 # ---------------------------------------------------------------------------
+
 
 def _normalise_name(name: str) -> str:
     return name.lower().replace("_", "-")
@@ -238,14 +239,13 @@ def filter_vulnerability_subgraph(
         elif _normalise_name(parent) in affected_set:
             keep.add((parent, child))
 
-    return [
-        {"parent": parent, "child": child} for parent, child in sorted(keep)
-    ]
+    return [{"parent": parent, "child": child} for parent, child in sorted(keep)]
 
 
 # ---------------------------------------------------------------------------
 # DOT rendering
 # ---------------------------------------------------------------------------
+
 
 def _escape(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
@@ -365,6 +365,7 @@ def render_dot_graph(
 # SVG rendering
 # ---------------------------------------------------------------------------
 
+
 def _max_depth(edges: list[dict]) -> int:
     """Return the longest path length (in edges) from any root."""
     children_of: dict[str, list[str]] = {}
@@ -406,9 +407,10 @@ def _select_engine(edges: list[dict]) -> tuple[str, bool, float]:
     """
     n = _node_count(edges)
     depth = _max_depth(edges)
+    # print(f"Graph has {n} nodes and depth {depth}. Choosing layout engine...")
 
     # Shallow + many leaves: radial is the right shape.
-    if depth <= 1 and n > 8:
+    if depth <= 1 and n > 3:
         return "twopi", False, 3.0
 
     # Hierarchical small graph
@@ -427,7 +429,11 @@ def _run(cmd: list[str], stdin: str) -> tuple[int, str]:
     """Run a subprocess, returning (returncode, stdout). Empty stdout on error."""
     try:
         result = subprocess.run(
-            cmd, input=stdin, capture_output=True, text=True, check=False,
+            cmd,
+            input=stdin,
+            capture_output=True,
+            text=True,
+            check=False,
         )
     except FileNotFoundError:
         return 1, ""

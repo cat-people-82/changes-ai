@@ -1422,6 +1422,30 @@ def _build_cve_scan_packages(
     return scan_packages, skipped
 
 
+def _build_graph_packages(
+    packages: dict,
+    venv_pkgs: dict | None,
+    *,
+    include_installed: bool,
+) -> dict:
+    """Return the package set used to construct cached dependency edges.
+
+    By default this is the declared manifest package set. When
+    ``include_installed`` is true, any additional packages discovered in
+    the local virtualenv are included as direct project dependencies too.
+
+    This keeps the report graph aligned with the package universe used by
+    CVE scanning, which can include installed-but-undeclared packages.
+    Declared manifest entries win over venv-discovered versions so we do
+    not discard the user's original requirement metadata.
+    """
+    graph_packages = dict(packages)
+    if include_installed and venv_pkgs:
+        for name, version in venv_pkgs.items():
+            graph_packages.setdefault(name, version)
+    return graph_packages
+
+
 def _format_skipped_cve_packages(skipped: list[tuple[str, str | None]]) -> str:
     if not skipped:
         return ""
@@ -2052,8 +2076,13 @@ examples:
     project_graph_name = (
         Path(scan_locator).name if args.source else scan_locator.replace("github:", "")
     )
-    graph_edges = build_dependency_edges(
+    graph_packages = _build_graph_packages(
         packages,
+        venv_pkgs,
+        include_installed=args.cve_scan,
+    )
+    graph_edges = build_dependency_edges(
+        graph_packages,
         project_node=project_graph_name or "project",
         installed_versions=venv_pkgs,
         libraries_client=libraries_client,
