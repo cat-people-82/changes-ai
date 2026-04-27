@@ -5,6 +5,7 @@ import sys
 import pytest
 
 import src
+import src.reporting as reporting_module
 from src.cache import SQLiteCache
 from src.changes_ai import (
     DependencyParser,
@@ -13,7 +14,11 @@ from src.changes_ai import (
     _format_skipped_cve_packages,
     parse_github_url,
 )
-from src.reporting import render_markdown_report
+from src.graph import render_dot_graph, render_svg_graph
+from src.reporting import (
+    render_html_report_bundle as render_cached_html_report_bundle,
+    render_markdown_report,
+)
 from src.render_report import (
     _resolve_css_path,
     render_report_html,
@@ -211,6 +216,54 @@ def test_markdown_report_uses_executive_summary_narrative():
     assert "- Run ID:" not in markdown
 
 
+def test_markdown_report_embeds_dependency_graph_svg_when_provided():
+    markdown = render_markdown_report(
+        {
+            "run": {"id": 1, "locator": "demo"},
+            "packages": [{"name": "requests"}],
+            "currency": [],
+            "graph": {"edges": [{"parent": "demo", "child": "requests"}]},
+            "vulnerabilities": [],
+            "usage": {"records": [], "unresolved": []},
+            "impact_reports": [],
+            "remediation_paths": [],
+            "executive_summary": {},
+        },
+        dependency_graph_svg="<svg><rect /></svg>",
+    )
+
+    assert '<div class="dependency-graph-svg">' in markdown
+    assert "<svg><rect /></svg>" in markdown
+    assert "Cached edges:" not in markdown
+
+
+def test_render_dot_graph_uses_top_down_compact_layout():
+    dot_graph = render_dot_graph(
+        [{"parent": "demo", "child": "requests"}],
+        graph_name="demo",
+    )
+
+    assert 'rankdir="TB";' in dot_graph
+    assert 'fontname="Helvetica,Arial,sans-serif";' in dot_graph
+    assert 'nodesep="0.25";' in dot_graph
+    assert 'ranksep="0.35";' in dot_graph
+
+
+def test_render_dot_graph_wraps_large_root_fanout_into_rows():
+    edges = [
+        {"parent": "demo", "child": f"dep{i}"}
+        for i in range(10)
+    ]
+
+    dot_graph = render_dot_graph(edges, graph_name="demo")
+
+    assert "__changes_ai_wrap_0_0" in dot_graph
+    assert "__changes_ai_wrap_0_1" in dot_graph
+    assert '{ rank=same; "__changes_ai_wrap_0_0"' in dot_graph
+    assert '"__changes_ai_wrap_0_0" -> "__changes_ai_wrap_0_1" [style=invis, weight=100];' in dot_graph
+    assert '"demo" -> "dep0" [constraint=false];' in dot_graph
+
+
 def test_report_html_renders_executive_summary_narrative():
     html = render_report_html(
         """# Changes AI Remediation Report
@@ -228,6 +281,31 @@ No cached vulnerabilities for this run.
     )
 
     assert "This run found a limited amount of upgrade risk" in html
+
+
+def test_cached_html_report_bundle_embeds_graphviz_svg(monkeypatch):
+    monkeypatch.setattr(
+        reporting_module,
+        "render_svg_graph",
+        lambda edges, graph_name="changes_ai": "<svg><text>graph</text></svg>",
+    )
+
+    bundle = render_cached_html_report_bundle(
+        {
+            "run": {"id": 1, "locator": "demo"},
+            "packages": [{"name": "requests"}],
+            "currency": [],
+            "graph": {"edges": [{"parent": "demo", "child": "requests"}]},
+            "vulnerabilities": [],
+            "usage": {"records": [], "unresolved": []},
+            "impact_reports": [],
+            "remediation_paths": [],
+            "executive_summary": {},
+        }
+    )
+
+    assert "<svg><text>graph</text></svg>" in bundle["index.html"]
+    assert "Cached edges:" not in bundle["index.html"]
 
 
 def test_report_html_wraps_impact_analysis_list():
@@ -258,6 +336,26 @@ No cached dependency graph edges.
     )
 
     assert '<div class="impact-analysis"><ul>' in html
+
+
+def test_render_svg_graph_strips_graphviz_preamble(monkeypatch):
+    def fake_run(*args, **kwargs):
+        return subprocess.CompletedProcess(
+            args=args[0],
+            returncode=0,
+            stdout='<?xml version="1.0"?>\n<!DOCTYPE svg>\n<svg><text>graph</text></svg>\n',
+            stderr="",
+        )
+
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        fake_run,
+    )
+
+    svg = render_svg_graph([{"parent": "demo", "child": "requests"}], graph_name="demo")
+
+    assert svg == "<svg><text>graph</text></svg>"
 
 
 def test_main_command_accepts_report_format_option():
@@ -488,9 +586,10 @@ def test_report_command_writes_html_report_bundle(tmp_path, monkeypatch):
     )
 
     assert result.returncode == 0
-    reports = list(output_dir.glob("report_*.html"))
+    reports = [path for path in output_dir.glob("report_*") if path.is_dir()]
     assert len(reports) == 1
     assert reports[0].is_dir()
+    assert reports[0].suffix == ""
     assert (reports[0] / "index.html").is_file()
     assert (reports[0] / "style.css").is_file()
 

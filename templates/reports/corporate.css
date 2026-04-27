@@ -341,6 +341,21 @@ tbody tr.row-MEDIUM   td:first-child { border-left: 2pt solid #B45309; }
 tbody tr.row-LOW      td:first-child { border-left: 2pt solid #1E40AF; }
 
 /* ---- Lists ------------------------------------------------- */
+.dependency-graph-svg {
+  width: 95%;
+  margin: 8px auto 18px auto;
+  padding: 12px 14px;
+  border: 0.5pt solid #d1d5db;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.dependency-graph-svg svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .impact-analysis ul {
   list-style: none;
   padding-left: 0;

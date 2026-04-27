@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 
 
 def _normalise_name(name: str) -> str:
@@ -56,14 +57,104 @@ def build_dependency_edges(
 
 def render_dot_graph(edges: list[dict], *, graph_name: str = "changes_ai") -> str:
     """Render a DOT graph from persisted edges."""
+    max_root_row = 4
 
     def _escape(value: str) -> str:
         return value.replace("\\", "\\\\").replace('"', '\\"')
 
-    lines = [f'digraph "{_escape(graph_name)}" {{', '  rankdir="LR";']
+    adjacency: dict[str, list[str]] = {}
+    parents: set[str] = set()
+    children: set[str] = set()
     for edge in edges:
-        parent = _escape(str(edge.get("parent") or ""))
-        child = _escape(str(edge.get("child") or ""))
-        lines.append(f'  "{parent}" -> "{child}";')
+        parent = str(edge.get("parent") or "")
+        child = str(edge.get("child") or "")
+        parents.add(parent)
+        children.add(child)
+        adjacency.setdefault(parent, []).append(child)
+
+    lines = [
+        f'digraph "{_escape(graph_name)}" {{',
+        '  fontname="Helvetica,Arial,sans-serif";',
+        '  rankdir="TB";',
+        '  nodesep="0.25";',
+        '  ranksep="0.35";',
+        '  node [fontname="Helvetica,Arial,sans-serif", fontsize="10", margin="0.08,0.04"];',
+        '  edge [fontname="Helvetica,Arial,sans-serif", fontsize="9", arrowsize="0.6", penwidth="0.8"];',
+    ]
+
+    roots = sorted(parents - children)
+    wrapped_roots: set[str] = set()
+    for root_index, root in enumerate(roots):
+        direct_children = sorted(adjacency.get(root, []))
+        if len(direct_children) <= max_root_row:
+            continue
+        wrapped_roots.add(root)
+
+        previous_helper = ""
+        for chunk_index in range(0, len(direct_children), max_root_row):
+            helper = f"__changes_ai_wrap_{root_index}_{chunk_index // max_root_row}"
+            chunk = direct_children[chunk_index : chunk_index + max_root_row]
+            escaped_helper = _escape(helper)
+            escaped_root = _escape(root)
+
+            lines.append(
+                f'  "{escaped_helper}" [shape=point, width=0, height=0, label="", style=invis];'
+            )
+            if previous_helper:
+                lines.append(
+                    f'  "{_escape(previous_helper)}" -> "{escaped_helper}" [style=invis, weight=100];'
+                )
+            else:
+                lines.append(
+                    f'  "{escaped_root}" -> "{escaped_helper}" [style=invis, weight=100];'
+                )
+
+            rank_members = " ".join(
+                f'"{_escape(member)}"' for member in [helper, *chunk]
+            )
+            lines.append(f"  {{ rank=same; {rank_members}; }}")
+            for child in chunk:
+                lines.append(
+                    f'  "{escaped_helper}" -> "{_escape(child)}" [style=invis, weight=10];'
+                )
+            previous_helper = helper
+
+    for edge in edges:
+        parent_raw = str(edge.get("parent") or "")
+        child_raw = str(edge.get("child") or "")
+        parent = _escape(parent_raw)
+        child = _escape(child_raw)
+        if parent_raw in wrapped_roots:
+            lines.append(f'  "{parent}" -> "{child}" [constraint=false];')
+        else:
+            lines.append(f'  "{parent}" -> "{child}";')
     lines.append("}")
     return "\n".join(lines)
+
+
+def render_svg_graph(
+    edges: list[dict], *, graph_name: str = "changes_ai"
+) -> str | None:
+    """Render a Graphviz SVG from persisted edges.
+
+    Returns ``None`` when Graphviz is unavailable or rendering fails.
+    """
+    dot_graph = render_dot_graph(edges, graph_name=graph_name)
+    try:
+        result = subprocess.run(
+            ["dot", "-Tsvg"],
+            input=dot_graph,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return None
+
+    if result.returncode != 0 or not result.stdout.strip():
+        return None
+
+    match = re.search(r"(<svg\b.*</svg>)", result.stdout, re.DOTALL)
+    if not match:
+        return None
+    return match.group(1).strip()

@@ -10,10 +10,10 @@ published as preview milestones until the public API and CLI behavior stabilize.
 ### Added
 
 - Added CSS styling the evidence list in HTML reports to improve readability and visual distinction of different evidence types.
+- Added GraphViz to produce more polished and informative dependency graph visualizations in HTML and PDF reports, with improved layout and styling.
 
 ### Fixed
 
-- Mermaid graph now render in non-markdown reports.
 - Tool-only `pyproject.toml` files no longer block manifest discovery; scans now fall through to `environment.yml` when no supported project dependencies are declared.
 
 ---

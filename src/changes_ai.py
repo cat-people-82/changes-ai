@@ -1151,12 +1151,19 @@ def _report_output_folder() -> Path | None:
 def _timestamped_report_path(report_format: str, output_dir: str | Path) -> Path:
     extension = REPORT_FORMAT_EXTENSIONS.get(report_format, report_format)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_path = Path(output_dir).expanduser() / f"report_{timestamp}.{extension}"
+    if report_format == "html":
+        output_path = Path(output_dir).expanduser() / f"report_{timestamp}"
+    else:
+        output_path = Path(output_dir).expanduser() / f"report_{timestamp}.{extension}"
     suffix = 1
     while output_path.exists():
-        output_path = (
-            Path(output_dir).expanduser() / f"report_{timestamp}_{suffix}.{extension}"
-        )
+        if report_format == "html":
+            output_path = Path(output_dir).expanduser() / f"report_{timestamp}_{suffix}"
+        else:
+            output_path = (
+                Path(output_dir).expanduser()
+                / f"report_{timestamp}_{suffix}.{extension}"
+            )
         suffix += 1
     return output_path
 

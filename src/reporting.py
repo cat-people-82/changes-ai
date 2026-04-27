@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from .graph import render_dot_graph
+from .graph import render_dot_graph, render_svg_graph
 from .render_report import render_report_html_bundle, render_report_pdf
 
 SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "UNKNOWN": 4}
@@ -34,7 +34,19 @@ def _group_by(items: list[dict], key: str) -> dict[str, list[dict]]:
     return grouped
 
 
-def render_markdown_report(report: dict) -> str:
+def _render_dependency_graph_svg(report: dict) -> str | None:
+    run = report.get("run", {})
+    graph = report.get("graph", {})
+    edges = graph.get("edges") or []
+    if not edges:
+        return None
+    return render_svg_graph(
+        edges,
+        graph_name=str(run.get("locator") or "changes_ai"),
+    )
+
+
+def render_markdown_report(report: dict, dependency_graph_svg: str | None = None) -> str:
     run = report.get("run", {})
     packages = report.get("packages", [])
     currency = report.get("currency", [])
@@ -183,12 +195,21 @@ def render_markdown_report(report: dict) -> str:
     lines.extend(["", "## Dependency Graph", ""])
     edges = graph.get("edges") or []
     if edges:
-        lines.append(f"Cached edges: {len(edges)}")
-        lines.append("")
-        for edge in edges[:25]:
-            lines.append(f"- {edge.get('parent')} -> {edge.get('child')}")
-        if len(edges) > 25:
-            lines.append(f"- ... {len(edges) - 25} more edges")
+        if dependency_graph_svg:
+            lines.extend(
+                [
+                    '<div class="dependency-graph-svg">',
+                    dependency_graph_svg,
+                    "</div>",
+                ]
+            )
+        else:
+            lines.append(f"Cached edges: {len(edges)}")
+            lines.append("")
+            for edge in edges[:25]:
+                lines.append(f"- {edge.get('parent')} -> {edge.get('child')}")
+            if len(edges) > 25:
+                lines.append(f"- ... {len(edges) - 25} more edges")
     else:
         lines.append("No cached dependency graph edges.")
 
@@ -353,7 +374,10 @@ def render_pdf_report(report: dict, css_path: str | None = None) -> bytes:
 
     The styling lives in /templates/reports folder. See that module for customisation options.
     """
-    markdown = render_markdown_report(report)
+    markdown = render_markdown_report(
+        report,
+        dependency_graph_svg=_render_dependency_graph_svg(report),
+    )
     return render_report_pdf(markdown, css_path=css_path)
 
 
@@ -361,5 +385,8 @@ def render_html_report_bundle(
     report: dict, css_path: str | None = None
 ) -> dict[str, str]:
     """Render an HTML report bundle with index.html and style.css assets."""
-    markdown = render_markdown_report(report)
+    markdown = render_markdown_report(
+        report,
+        dependency_graph_svg=_render_dependency_graph_svg(report),
+    )
     return render_report_html_bundle(markdown, css_path=css_path)

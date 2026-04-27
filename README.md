@@ -111,9 +111,10 @@ For local development:
 pip install -e ".[dev]"
 ```
 
-For PDF reports on MacOS:
+For graphic dependency diagrams and PDF reports on MacOS:
 
 ```bash
+brew install graphviz
 brew install pango
 ```
 
@@ -146,10 +147,10 @@ changes-ai cache clear [--source SOURCE]
 | `--format {json,table,md,html,pdf,sarif,dot}` | Report output format for `changes-ai report` and scan-generated summary reports (default: `CHANGES_AI_REPORT_FORMAT`; `json` for `report`, `md` for scan output) |
 | `--report-template TEMPLATE_OR_CSS` | PDF report template name or path to a custom CSS file for `changes-ai report` and scan-generated summary reports (default: `CHANGES_AI_REPORT_TEMPLATE` or the built-in template) |
 | `--chart` | Generate a dependency chart |
-| `--chart-format {mermaid,ascii,dot,both}` | Chart format (default: `ascii`) |
-| `--transitive` | Include transitive (sub-)dependencies in the Mermaid chart |
+| `--chart-format {mermaid,ascii,dot,both}` | Chart format for `--chart` output only (default: `ascii`); it does not control HTML/PDF report graph rendering |
+| `--transitive` | Include transitive (sub-)dependencies in generated dependency charts; HTML/PDF report graphs use the same cached depth |
 | `--chart-output FILE` | Write the selected chart format to `FILE` instead of stdout |
-| `--report-output DIR_OR_FILE` | Write a summary report to a file or directory; directory outputs use `report_YYYYMMDD_HHMMSS.<format>`, and html reports create a folder containing `index.html` and `style.css` |
+| `--report-output DIR_OR_FILE` | Write a summary report to a file or directory; directory outputs use `report_YYYYMMDD_HHMMSS.<format>`, except html reports which create a `report_YYYYMMDD_HHMMSS/` folder containing `index.html` and `style.css` |
 | `--all` | Run the full analysis suite: dependency chart, CVE scan, usage analysis, LLM impact analysis, and remediation planning |
 | `--cve-scan` | Scan packages with concrete installed versions for known CVEs via the [OSV](https://osv.dev/) database; range-only or unpinned specs are skipped with a warning unless a local venv provides the installed version |
 | `--severity-threshold LEVEL` | Only display CVEs at or above this level: `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `UNKNOWN` (default: `LOW`) |
@@ -195,6 +196,9 @@ changes-ai --url https://github.com/owner/repo --chart --chart-format dot --char
 
 # Include transitive dependencies in the chart
 changes-ai --url https://github.com/owner/repo --chart --transitive
+
+# Generate a report whose embedded dependency graph includes transitive edges
+changes-ai --source /path/to/project --transitive --report-output ./reports --format html
 
 # Re-run using only cached libraries.io data
 changes-ai scan --source /path/to/project --offline
@@ -258,6 +262,14 @@ changes-ai --source /path/to/project \
 | `pyproject.toml` | PEP 621 (`[project.dependencies]`) and Poetry (`[tool.poetry.dependencies]`) |
 | `environment.yml` | Conda environment manifest (`dependencies`, including nested `pip:` lists) |
 | `uv.lock` | uv lockfile (TOML) |
+
+## Report Graph Rendering
+
+- HTML and PDF reports try to prerender the `Dependency Graph` section as inline SVG using local Graphviz (`dot`).
+- The embedded report graph uses the cached dependency edges collected during the scan.
+- `--transitive` still controls graph depth. Without it, reports show direct dependencies only; with it, reports include cached transitive edges.
+- `--chart-format` still applies only to `--chart` CLI output. It does not change the graph renderer used inside HTML or PDF reports.
+- If Graphviz is unavailable or SVG rendering fails, reports fall back to the text edge list.
 
 ## Sample output
 
@@ -404,6 +416,10 @@ Key priority: CLI flag → environment variable → `.env` file.
 | `CHANGES_AI_REPORT_FORMAT` | Optional | Default report format for generated reports: `json`, `table`, `md`, `html`, `pdf`, `sarif`, or `dot` |
 | `CHANGES_AI_REPORT_TEMPLATE` | Optional | Default PDF report template name or path to a custom CSS file |
 | `CHANGES_AI_CHART_OUTPUT` | Optional | Default dependency chart output path |
+
+Graphviz is optional, but required if you want HTML or PDF reports to embed a
+prerendered dependency graph. Install it locally so the `dot` command is on
+your `PATH`.
 
 When `--usage-analysis` is enabled, Changes AI refuses to send source-derived
 symbol data to known hosted commercial LLM endpoints unless you opt in with
