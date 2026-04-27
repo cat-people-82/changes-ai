@@ -42,7 +42,7 @@ PALETTE = {
     "node_text": "#1a1a1a",
     "root_fill": "#0B2545",
     "root_text": "#ffffff",
-    "edge": "#9ca3af",
+    "edge": "#cbd5e1",
     "font": "Helvetica,Arial,sans-serif",
 }
 
@@ -308,6 +308,7 @@ def render_dot_graph(
         f'  bgcolor="{PALETTE["bg"]}";',
         f'  fontname="{PALETTE["font"]}";',
         f'  rankdir="{rankdir}";',
+        '  outputorder="edgesfirst";',
         '  nodesep="0.35";',
         f'  ranksep="{ranksep}";',
         '  splines="spline";',
@@ -320,7 +321,7 @@ def render_dot_graph(
         ),
         (
             f'  edge [fontname="{PALETTE["font"]}", fontsize="9", '
-            f'arrowsize="0.6", penwidth="0.8", color="{PALETTE["edge"]}"];'
+            f'arrowsize="0.55", penwidth="0.6", color="{PALETTE["edge"]}"];'
         ),
     ]
 

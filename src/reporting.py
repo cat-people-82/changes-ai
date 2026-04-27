@@ -70,18 +70,47 @@ def _report_dependency_graph_focus(report: dict) -> set[str]:
 def _filter_report_graph_edges(
     edges: list[dict], focus_packages: set[str]
 ) -> list[dict]:
-    """Keep only focus packages and their immediate parent context."""
+    """Keep focus packages plus their upstream context.
+
+    The report graph should stay focused on impact-summary packages, but
+    those nodes still need enough ancestry to remain connected back to the
+    project root when possible. Downstream children are intentionally
+    excluded so the graph does not expand back into the full dependency DAG.
+    """
     if not focus_packages:
         return list(edges)
 
     focus_norm = {str(name).lower().replace("_", "-") for name in focus_packages}
-    keep: set[tuple[str, str]] = set()
+    incoming: dict[str, list[tuple[str, str]]] = {}
     for edge in edges:
         parent = str(edge.get("parent") or "")
         child = str(edge.get("child") or "")
-        if child.lower().replace("_", "-") in focus_norm:
+        incoming.setdefault(child.lower().replace("_", "-"), []).append((parent, child))
+
+    keep: set[tuple[str, str]] = set()
+    stack = list(focus_norm)
+    seen: set[str] = set()
+
+    while stack:
+        current = stack.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        for parent, child in incoming.get(current, []):
             keep.add((parent, child))
-    return [{"parent": parent, "child": child} for parent, child in sorted(keep)]
+            stack.append(parent.lower().replace("_", "-"))
+
+    filtered: list[dict] = []
+    emitted: set[tuple[str, str]] = set()
+    for edge in edges:
+        parent = str(edge.get("parent") or "")
+        child = str(edge.get("child") or "")
+        key = (parent, child)
+        if key not in keep or key in emitted:
+            continue
+        filtered.append({"parent": parent, "child": child})
+        emitted.add(key)
+    return filtered
 
 
 def _render_dependency_graph_svg(report: dict) -> str | None:

@@ -5,6 +5,7 @@ import sys
 import pytest
 
 import src
+import src.graph as graph_module
 import src.reporting as reporting_module
 from src.cache import SQLiteCache
 from src.changes_ai import (
@@ -263,31 +264,38 @@ def test_markdown_report_embeds_dependency_graph_svg_when_provided():
     assert "Cached edges:" not in markdown
 
 
-def test_render_dot_graph_uses_top_down_compact_layout():
+def test_render_dot_graph_uses_top_down_layout_defaults():
     dot_graph = render_dot_graph(
         [{"parent": "demo", "child": "requests"}],
         graph_name="demo",
     )
 
     assert 'rankdir="TB";' in dot_graph
+    assert 'outputorder="edgesfirst";' in dot_graph
     assert 'fontname="Helvetica,Arial,sans-serif";' in dot_graph
-    assert 'nodesep="0.25";' in dot_graph
-    assert 'ranksep="0.35";' in dot_graph
+    assert 'nodesep="0.35";' in dot_graph
+    assert 'ranksep="0.6";' in dot_graph
+    assert 'penwidth="0.6"' in dot_graph
+    assert 'color="#cbd5e1"' in dot_graph
 
 
-def test_render_dot_graph_wraps_large_root_fanout_into_rows():
+def test_render_svg_graph_uses_twopi_for_wide_shallow_graph(monkeypatch):
     edges = [
         {"parent": "demo", "child": f"dep{i}"}
         for i in range(10)
     ]
+    commands: list[list[str]] = []
 
-    dot_graph = render_dot_graph(edges, graph_name="demo")
+    def fake_run(cmd, stdin):
+        commands.append(cmd)
+        return 0, '<svg xmlns="http://www.w3.org/2000/svg"></svg>'
 
-    assert "__changes_ai_wrap_0_0" in dot_graph
-    assert "__changes_ai_wrap_0_1" in dot_graph
-    assert '{ rank=same; "__changes_ai_wrap_0_0"' in dot_graph
-    assert '"__changes_ai_wrap_0_0" -> "__changes_ai_wrap_0_1" [style=invis, weight=100];' in dot_graph
-    assert '"demo" -> "dep0" [constraint=false];' in dot_graph
+    monkeypatch.setattr(graph_module, "_run", fake_run)
+
+    svg = render_svg_graph(edges, graph_name="demo")
+
+    assert svg == '<svg xmlns="http://www.w3.org/2000/svg"></svg>'
+    assert commands == [["twopi", "-Tsvg"]]
 
 
 def test_report_dependency_graph_uses_severity_states_not_upgrades(monkeypatch):
@@ -442,6 +450,7 @@ def test_report_dependency_graph_uses_impact_summary_packages_only(monkeypatch):
     )
 
     assert captured["edges"] == [
+        {"parent": "demo", "child": "requests"},
         {"parent": "requests", "child": "urllib3"},
     ]
     assert "High" in bundle["index.html"]
