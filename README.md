@@ -375,7 +375,7 @@ urllib3    1.26.5 → 1.26.11      patch   ○ LOW (0.02)       ✓ HIGH
 | `1` | Tool error |
 | `2` | One or more vulnerabilities found at or above the `--fail-on` threshold |
 
-Sample report files are available in the `sample-reports/` directory.
+**Sample Report** files are available in the `sample-reports/` directory.
 
 ## Configuration via `.env` file
 
