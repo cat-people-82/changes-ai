@@ -4,14 +4,14 @@ This module builds and renders the dependency graph used in Changes-AI
 reports. The renderer adapts to graph size:
 
 * Small graphs (<= 12 nodes)  -> ``dot`` directly, top-to-bottom.
-* Medium graphs (13-80 nodes) -> ``unflatten`` preprocessor + ``dot``.
-* Large graphs (> 80 nodes)   -> ``twopi`` radial layout.
+* Medium graphs (13-40 nodes) -> ``unflatten`` preprocessor + ``dot``.
+* Large graphs (> 40 nodes)   -> ``twopi`` radial layout.
 
 Visual styling matches the corporate-serious aesthetic used by the PDF
 report (navy nodes, gold project root, light grid background). When
-``vulnerable_packages`` is supplied to ``render_svg_graph``, those
-nodes are highlighted in red so the reader can see remediation impact
-at a glance.
+``package_states`` is supplied to ``render_svg_graph``, nodes are styled
+according to their vulnerability or remediation state so the reader can
+see remediation impact at a glance.
 """
 
 from __future__ import annotations
