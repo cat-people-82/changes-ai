@@ -88,6 +88,7 @@ DEPENDENCY_CANDIDATES = [
     ("requirements/main.txt", "pip"),
     ("requirements/prod.txt", "pip"),
     ("pyproject.toml", "pyproject"),
+    ("environment.yml", "conda"),
     ("uv.lock", "uv"),
 ]
 
@@ -190,12 +191,32 @@ class DependencyParser:
         dispatch = {
             "pip": DependencyParser.parse_requirements_txt,
             "pyproject": DependencyParser.parse_pyproject_toml,
+            "conda": DependencyParser.parse_conda_environment_yml,
             "uv": DependencyParser.parse_uv_lock,
         }
         parser = dispatch.get(file_type)
         if parser is None:
             raise ValueError(f"Unknown dependency file type: {file_type!r}")
         return parser(content)
+
+    @staticmethod
+    def _parse_requirement_entry(requirement: str) -> tuple[str, str | None] | None:
+        """Parse a single requirement-like entry into ``(name, specifier)``."""
+        line = requirement.split("#")[0].strip()
+        if not line:
+            return None
+
+        name_match = re.match(
+            r"^([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)", line
+        )
+        if not name_match:
+            return None
+
+        name = name_match.group(1)
+        after_name = line[name_match.end() :]
+        after_name = re.sub(r"^\[[^\]]*\]", "", after_name)
+        spec_str = after_name.split(";")[0].strip()
+        return name, spec_str if spec_str else None
 
     @staticmethod
     def parse_requirements_txt(content: str) -> dict:
@@ -206,24 +227,11 @@ class DependencyParser:
             # Skip blank lines, comments and pip options (e.g. -r, -c, -e)
             if not line or line.startswith("#") or line.startswith("-"):
                 continue
-            line = line.split("#")[0].strip()
-            if not line:
+            parsed = DependencyParser._parse_requirement_entry(line)
+            if parsed is None:
                 continue
-            # Package name (supports extras like package[extra1,extra2])
-            name_match = re.match(
-                r"^([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)", line
-            )
-            if not name_match:
-                continue
-            name = name_match.group(1)
-            # Capture the full version specifier (e.g. >=2.28.0, ==1.2.3, >=1.0,<2.0)
-            # stopping at environment markers (;) or end of line.
-            after_name = line[name_match.end() :]
-            # Strip extras like [security] before the specifier
-            after_name = re.sub(r"^\[[^\]]*\]", "", after_name)
-            # Remove environment markers
-            spec_str = after_name.split(";")[0].strip()
-            packages[name] = spec_str if spec_str else None
+            name, spec_str = parsed
+            packages[name] = spec_str
         return packages
 
     @staticmethod
@@ -269,15 +277,78 @@ class DependencyParser:
                 dep_strings.append(f"{pkg_name}{normalized}")
 
         for dep in dep_strings:
-            # Strip environment markers
-            dep = dep.split(";")[0].strip()
-            name_match = re.match(r"^([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)", dep)
-            if not name_match:
+            parsed = DependencyParser._parse_requirement_entry(dep)
+            if parsed is None:
                 continue
-            name = name_match.group(1)
-            after_name = dep[name_match.end() :]
-            after_name = re.sub(r"^\[[^\]]*\]", "", after_name)
-            spec_str = after_name.strip()
+            name, spec_str = parsed
+            packages[name] = spec_str
+
+        return packages
+
+    @staticmethod
+    def parse_conda_environment_yml(content: str) -> dict:
+        """Parse a Conda ``environment.yml`` dependency list."""
+        packages: dict = {}
+        in_dependencies = False
+        in_pip_block = False
+        dependencies_indent = -1
+        pip_indent = -1
+
+        for raw_line in content.splitlines():
+            stripped = raw_line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+
+            indent = len(raw_line) - len(raw_line.lstrip(" "))
+
+            if not in_dependencies:
+                if stripped == "dependencies:":
+                    in_dependencies = True
+                    dependencies_indent = indent
+                continue
+
+            if indent <= dependencies_indent and not stripped.startswith("- "):
+                break
+
+            if in_pip_block:
+                if indent <= pip_indent:
+                    in_pip_block = False
+                elif stripped.startswith("- "):
+                    parsed = DependencyParser._parse_requirement_entry(stripped[2:].strip())
+                    if parsed is not None:
+                        name, spec_str = parsed
+                        packages[name] = spec_str
+                    continue
+
+            if not stripped.startswith("- "):
+                continue
+
+            entry = stripped[2:].strip()
+            if entry == "pip:":
+                in_pip_block = True
+                pip_indent = indent
+                continue
+
+            entry = entry.split("#")[0].strip()
+            if not entry:
+                continue
+
+            if "::" in entry:
+                entry = entry.split("::", 1)[1].strip()
+
+            conda_match = re.match(
+                r"^([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)(.*)$",
+                entry,
+            )
+            if not conda_match:
+                continue
+
+            name = conda_match.group(1)
+            spec_str = conda_match.group(2).strip()
+            if spec_str.startswith("=") and not spec_str.startswith(
+                ("==", ">=", "<=", "!=", "~=")
+            ):
+                spec_str = f"=={spec_str[1:]}"
             packages[name] = spec_str if spec_str else None
 
         return packages
@@ -1080,12 +1151,19 @@ def _report_output_folder() -> Path | None:
 def _timestamped_report_path(report_format: str, output_dir: str | Path) -> Path:
     extension = REPORT_FORMAT_EXTENSIONS.get(report_format, report_format)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_path = Path(output_dir).expanduser() / f"report_{timestamp}.{extension}"
+    if report_format == "html":
+        output_path = Path(output_dir).expanduser() / f"report_{timestamp}"
+    else:
+        output_path = Path(output_dir).expanduser() / f"report_{timestamp}.{extension}"
     suffix = 1
     while output_path.exists():
-        output_path = (
-            Path(output_dir).expanduser() / f"report_{timestamp}_{suffix}.{extension}"
-        )
+        if report_format == "html":
+            output_path = Path(output_dir).expanduser() / f"report_{timestamp}_{suffix}"
+        else:
+            output_path = (
+                Path(output_dir).expanduser()
+                / f"report_{timestamp}_{suffix}.{extension}"
+            )
         suffix += 1
     return output_path
 
@@ -1342,6 +1420,30 @@ def _build_cve_scan_packages(
         else:
             skipped.append((name, requirement))
     return scan_packages, skipped
+
+
+def _build_graph_packages(
+    packages: dict,
+    venv_pkgs: dict | None,
+    *,
+    include_installed: bool,
+) -> dict:
+    """Return the package set used to construct cached dependency edges.
+
+    By default this is the declared manifest package set. When
+    ``include_installed`` is true, any additional packages discovered in
+    the local virtualenv are included as direct project dependencies too.
+
+    This keeps the report graph aligned with the package universe used by
+    CVE scanning, which can include installed-but-undeclared packages.
+    Declared manifest entries win over venv-discovered versions so we do
+    not discard the user's original requirement metadata.
+    """
+    graph_packages = dict(packages)
+    if include_installed and venv_pkgs:
+        for name, version in venv_pkgs.items():
+            graph_packages.setdefault(name, version)
+    return graph_packages
 
 
 def _format_skipped_cve_packages(skipped: list[tuple[str, str | None]]) -> str:
@@ -1871,6 +1973,9 @@ examples:
                     print(f"Error reading {dep_file}: {exc}", file=sys.stderr)
                     sys.exit(1)
                 packages = DependencyParser.parse(content, file_type)
+                if not packages:
+                    packages = None
+                    continue
                 # Detect packages installed in the venv but not declared as deps.
                 try:
                     venv_path = find_venv(args.source)
@@ -1971,8 +2076,13 @@ examples:
     project_graph_name = (
         Path(scan_locator).name if args.source else scan_locator.replace("github:", "")
     )
-    graph_edges = build_dependency_edges(
+    graph_packages = _build_graph_packages(
         packages,
+        venv_pkgs,
+        include_installed=args.cve_scan,
+    )
+    graph_edges = build_dependency_edges(
+        graph_packages,
         project_node=project_graph_name or "project",
         installed_versions=venv_pkgs,
         libraries_client=libraries_client,

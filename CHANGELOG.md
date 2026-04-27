@@ -5,6 +5,19 @@ All notable changes to Changes AI will be documented in this file.
 This project follows a pragmatic preview-release format. Versions are currently
 published as preview milestones until the public API and CLI behavior stabilize.
 
+## [0.6.3] - 2026-04-27
+
+### Added
+
+- Added CSS styling the evidence list in HTML reports to improve readability and visual distinction of different evidence types.
+- Added GraphViz to produce more polished and informative dependency graph visualizations in HTML and PDF reports, with improved layout and styling.
+
+### Fixed
+
+- Tool-only `pyproject.toml` files no longer block manifest discovery; scans now fall through to `environment.yml` when no supported project dependencies are declared.
+
+---
+
 ## [0.6.2] - 2026-04-26
 
 ### Added
@@ -26,6 +39,8 @@ published as preview milestones until the public API and CLI behavior stabilize.
   unless LLM impact analysis was explicitly enabled for the run.
 - CVE scans now warn when a manifest dependency cannot be resolved to a concrete
   installed version for OSV scanning.
+
+---
 
 ## [0.6.1] - 2026-04-25
 

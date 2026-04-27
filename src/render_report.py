@@ -249,6 +249,21 @@ def _wrap_limitations(html: str) -> str:
     return pattern.sub(repl, html)
 
 
+def _wrap_impact_analysis(html: str) -> str:
+    """Wrap the impact evidence list in a dedicated container."""
+    pattern = re.compile(
+        r"(<h2>Impact Summary</h2>.*?)(<ul>.*?</ul>)(?=(?:\s*<div class=\"section-rule\"></div>\s*<h2>)|\s*<h2>|$)",
+        re.DOTALL,
+    )
+
+    def repl(match: re.Match) -> str:
+        before_list = match.group(1)
+        list_html = match.group(2)
+        return f'{before_list}<div class="impact-analysis">{list_html}</div>'
+
+    return pattern.sub(repl, html, count=1)
+
+
 def _add_section_rules(html: str) -> str:
     """Insert a gold accent rule before each h2 (except those already
     inside a .limitations wrapper, which has its own treatment)."""
@@ -346,6 +361,7 @@ def _build_report_html_document(md_text: str, stylesheet_markup: str) -> str:
     body_html = _wrap_severity_cells(body_html)
     body_html = _wrap_remediation_paths(body_html)
     body_html = _wrap_limitations(body_html)
+    body_html = _wrap_impact_analysis(body_html)
     body_html = _add_section_rules(body_html)
 
     cover_html = _render_cover(summary)

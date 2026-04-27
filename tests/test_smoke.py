@@ -5,15 +5,22 @@ import sys
 import pytest
 
 import src
+import src.graph as graph_module
+import src.reporting as reporting_module
 from src.cache import SQLiteCache
 from src.changes_ai import (
     DependencyParser,
+    _build_graph_packages,
     _build_cve_scan_packages,
     _executive_summary_api_key,
     _format_skipped_cve_packages,
     parse_github_url,
 )
-from src.reporting import render_markdown_report
+from src.graph import render_dot_graph, render_svg_graph
+from src.reporting import (
+    render_html_report_bundle as render_cached_html_report_bundle,
+    render_markdown_report,
+)
 from src.render_report import (
     _resolve_css_path,
     render_report_html,
@@ -66,6 +73,40 @@ dev = ["pytest>=7.0.0"]
     }
 
 
+def test_dependency_parser_ignores_tool_only_pyproject_sections():
+    content = """
+[tool.isort]
+extra_standard_library = [
+    "numpy",
+    "torch",
+]
+"""
+
+    assert DependencyParser.parse(content, "pyproject") == {}
+
+
+def test_dependency_parser_handles_conda_environment_dependencies():
+    content = """
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pytorch-cuda=12.1
+  - pip
+  - pip:
+      - gymnasium==1.2.0
+      - tensorboard>=2.16
+"""
+
+    assert DependencyParser.parse(content, "conda") == {
+        "python": "==3.11",
+        "pytorch-cuda": "==12.1",
+        "pip": None,
+        "gymnasium": "==1.2.0",
+        "tensorboard": ">=2.16",
+    }
+
+
 def test_cli_version_smoke():
     result = subprocess.run(
         [sys.executable, "-m", "src.changes_ai", "--version"],
@@ -111,6 +152,31 @@ def test_cve_scan_packages_uses_venv_versions_for_range_specs():
 
     assert scan_packages == {"requests": "2.28.1", "certifi": "2024.2.2"}
     assert skipped == []
+
+
+def test_build_graph_packages_includes_installed_packages_for_cve_runs():
+    graph_packages = _build_graph_packages(
+        {"requests": ">=2.28.0", "flask": None},
+        venv_pkgs={"requests": "2.32.5", "urllib3": "2.5.0", "black": "25.9.0"},
+        include_installed=True,
+    )
+
+    assert graph_packages == {
+        "requests": ">=2.28.0",
+        "flask": None,
+        "urllib3": "2.5.0",
+        "black": "25.9.0",
+    }
+
+
+def test_build_graph_packages_keeps_manifest_only_when_not_requested():
+    graph_packages = _build_graph_packages(
+        {"requests": ">=2.28.0", "flask": None},
+        venv_pkgs={"urllib3": "2.5.0", "black": "25.9.0"},
+        include_installed=False,
+    )
+
+    assert graph_packages == {"requests": ">=2.28.0", "flask": None}
 
 
 def test_report_css_template_path_resolves():
@@ -177,6 +243,251 @@ def test_markdown_report_uses_executive_summary_narrative():
     assert "- Run ID:" not in markdown
 
 
+def test_markdown_report_embeds_dependency_graph_svg_when_provided():
+    markdown = render_markdown_report(
+        {
+            "run": {"id": 1, "locator": "demo"},
+            "packages": [{"name": "requests"}],
+            "currency": [],
+            "graph": {"edges": [{"parent": "demo", "child": "requests"}]},
+            "vulnerabilities": [],
+            "usage": {"records": [], "unresolved": []},
+            "impact_reports": [],
+            "remediation_paths": [],
+            "executive_summary": {},
+        },
+        dependency_graph_svg="<svg><rect /></svg>",
+    )
+
+    assert '<div class="dependency-graph-svg">' in markdown
+    assert "<svg><rect /></svg>" in markdown
+    assert "Cached edges:" not in markdown
+
+
+def test_render_dot_graph_uses_top_down_layout_defaults():
+    dot_graph = render_dot_graph(
+        [{"parent": "demo", "child": "requests"}],
+        graph_name="demo",
+    )
+
+    assert 'rankdir="TB";' in dot_graph
+    assert 'outputorder="edgesfirst";' in dot_graph
+    assert 'fontname="Helvetica,Arial,sans-serif";' in dot_graph
+    assert 'nodesep="0.35";' in dot_graph
+    assert 'ranksep="0.6";' in dot_graph
+    assert 'penwidth="0.6"' in dot_graph
+    assert 'color="#cbd5e1"' in dot_graph
+
+
+def test_render_svg_graph_uses_twopi_for_wide_shallow_graph(monkeypatch):
+    edges = [
+        {"parent": "demo", "child": f"dep{i}"}
+        for i in range(10)
+    ]
+    commands: list[list[str]] = []
+
+    def fake_run(cmd, stdin):
+        commands.append(cmd)
+        return 0, '<svg xmlns="http://www.w3.org/2000/svg"></svg>'
+
+    monkeypatch.setattr(graph_module, "_run", fake_run)
+
+    svg = render_svg_graph(edges, graph_name="demo")
+
+    assert svg == '<svg xmlns="http://www.w3.org/2000/svg"></svg>'
+    assert commands == [["twopi", "-Tsvg"]]
+
+
+def test_report_dependency_graph_uses_severity_states_not_upgrades(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_render_svg_graph(edges, *, graph_name="changes_ai", package_states=None, rankdir=None):
+        captured["edges"] = edges
+        captured["package_states"] = package_states
+        return "<svg><text>graph</text></svg>"
+
+    monkeypatch.setattr(reporting_module, "render_svg_graph", fake_render_svg_graph)
+
+    bundle = render_cached_html_report_bundle(
+        {
+            "run": {"id": 1, "locator": "demo"},
+            "packages": [{"name": "requests"}],
+            "currency": [],
+            "graph": {"edges": [{"parent": "demo", "child": "requests"}]},
+            "vulnerabilities": [
+                {
+                    "package": "requests",
+                    "severity": "HIGH",
+                    "cve_id": "CVE-1",
+                    "installed_version": "2.31.0",
+                    "fixed_versions": ["2.32.0"],
+                }
+            ],
+            "usage": {"records": [], "unresolved": []},
+            "impact_reports": [],
+            "remediation_paths": [
+                {
+                    "path_type": "balanced",
+                    "upgrades": [{"package": "requests"}],
+                    "cves_no_fix": [],
+                }
+            ],
+            "executive_summary": {},
+        }
+    )
+
+    assert captured["edges"] == [{"parent": "demo", "child": "requests"}]
+    assert captured["package_states"] == {"requests": "high"}
+    assert "<svg><text>graph</text></svg>" in bundle["index.html"]
+    assert "High" in bundle["index.html"]
+
+
+def test_report_dependency_graph_filters_irrelevant_nodes(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_render_svg_graph(edges, *, graph_name="changes_ai", package_states=None, rankdir=None):
+        captured["edges"] = edges
+        return "<svg><text>graph</text></svg>"
+
+    monkeypatch.setattr(reporting_module, "render_svg_graph", fake_render_svg_graph)
+
+    render_cached_html_report_bundle(
+        {
+            "run": {"id": 1, "locator": "demo"},
+            "packages": [{"name": "requests"}],
+            "currency": [],
+            "graph": {
+                "edges": [
+                    {"parent": "demo", "child": "requests"},
+                    {"parent": "requests", "child": "urllib3"},
+                    {"parent": "demo", "child": "flask"},
+                    {"parent": "flask", "child": "jinja2"},
+                ]
+            },
+            "vulnerabilities": [
+                {
+                    "package": "urllib3",
+                    "severity": "HIGH",
+                    "cve_id": "CVE-1",
+                    "installed_version": "2.5.0",
+                    "fixed_versions": ["2.6.0"],
+                }
+            ],
+            "usage": {"records": [], "unresolved": []},
+            "impact_reports": [
+                {
+                    "package": "urllib3",
+                    "installed_version": "2.5.0",
+                    "candidate_version": "2.6.0",
+                    "probable_breakage": "LOW",
+                    "breakage_score": 0.2,
+                    "confidence": "MEDIUM",
+                }
+            ],
+            "remediation_paths": [],
+            "executive_summary": {},
+        }
+    )
+
+    assert captured["edges"] == [
+        {"parent": "demo", "child": "requests"},
+        {"parent": "requests", "child": "urllib3"},
+    ]
+
+
+def test_report_dependency_graph_uses_impact_summary_packages_only(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_render_svg_graph(edges, *, graph_name="changes_ai", package_states=None, rankdir=None):
+        captured["edges"] = edges
+        return "<svg><text>graph</text></svg>"
+
+    monkeypatch.setattr(reporting_module, "render_svg_graph", fake_render_svg_graph)
+
+    bundle = render_cached_html_report_bundle(
+        {
+            "run": {"id": 1, "locator": "demo"},
+            "packages": [{"name": "requests"}],
+            "currency": [],
+            "graph": {
+                "edges": [
+                    {"parent": "demo", "child": "requests"},
+                    {"parent": "requests", "child": "urllib3"},
+                    {"parent": "demo", "child": "flask"},
+                    {"parent": "flask", "child": "jinja2"},
+                ]
+            },
+            "vulnerabilities": [
+                {
+                    "package": "urllib3",
+                    "severity": "HIGH",
+                    "cve_id": "CVE-1",
+                    "installed_version": "2.5.0",
+                    "fixed_versions": ["2.6.0"],
+                },
+                {
+                    "package": "flask",
+                    "severity": "LOW",
+                    "cve_id": "CVE-2",
+                    "installed_version": "3.1.2",
+                    "fixed_versions": ["3.1.3"],
+                },
+            ],
+            "usage": {"records": [], "unresolved": []},
+            "impact_reports": [
+                {
+                    "package": "urllib3",
+                    "installed_version": "2.5.0",
+                    "candidate_version": "2.6.0",
+                    "probable_breakage": "LOW",
+                    "breakage_score": 0.2,
+                    "confidence": "MEDIUM",
+                }
+            ],
+            "remediation_paths": [],
+            "executive_summary": {},
+        }
+    )
+
+    assert captured["edges"] == [
+        {"parent": "demo", "child": "requests"},
+        {"parent": "requests", "child": "urllib3"},
+    ]
+    assert "High" in bundle["index.html"]
+    assert "Low" not in bundle["index.html"]
+
+
+def test_dependency_graph_key_renders_severity_and_no_fix_states():
+    key_html = reporting_module._render_dependency_graph_key(
+        {
+            "vulnerabilities": [
+                {
+                    "package": "requests",
+                    "severity": "HIGH",
+                    "cve_id": "CVE-1",
+                },
+                {
+                    "package": "flask",
+                    "severity": "CRITICAL",
+                    "cve_id": "CVE-2",
+                },
+            ],
+            "remediation_paths": [
+                {
+                    "path_type": "balanced",
+                    "upgrades": [{"package": "requests"}],
+                    "cves_no_fix": ["CVE-2"],
+                }
+            ],
+        }
+    )
+
+    assert key_html is not None
+    assert "High" in key_html
+    assert "No fix available" in key_html
+    assert "Upgraded" not in key_html
+
+
 def test_report_html_renders_executive_summary_narrative():
     html = render_report_html(
         """# Changes AI Remediation Report
@@ -194,6 +505,81 @@ No cached vulnerabilities for this run.
     )
 
     assert "This run found a limited amount of upgrade risk" in html
+
+
+def test_cached_html_report_bundle_embeds_graphviz_svg(monkeypatch):
+    monkeypatch.setattr(
+        reporting_module,
+        "render_svg_graph",
+        lambda edges, graph_name="changes_ai", **kwargs: "<svg><text>graph</text></svg>",
+    )
+
+    bundle = render_cached_html_report_bundle(
+        {
+            "run": {"id": 1, "locator": "demo"},
+            "packages": [{"name": "requests"}],
+            "currency": [],
+            "graph": {"edges": [{"parent": "demo", "child": "requests"}]},
+            "vulnerabilities": [],
+            "usage": {"records": [], "unresolved": []},
+            "impact_reports": [],
+            "remediation_paths": [],
+            "executive_summary": {},
+        }
+    )
+
+    assert "<svg><text>graph</text></svg>" in bundle["index.html"]
+    assert "Cached edges:" not in bundle["index.html"]
+
+
+def test_report_html_wraps_impact_analysis_list():
+    html = render_report_html(
+        """# Changes AI Remediation Report
+
+## Executive Summary
+
+- Run ID: 1
+- Target: demo
+- Packages analysed: 1
+- Vulnerabilities found: 1
+- Remediation paths: 0
+
+## Impact Summary
+
+| Package | Upgrade | Breakage | Confidence |
+|---|---|---|---|
+| requests | 2.31.0 -> 2.32.0 | low (0.2) | medium |
+
+- requests 2.31.0 -> 2.32.0: Release notes mention a transport-layer change.
+  Citation: changelog - requests 2.32.0 (https://example.com/requests-2.32.0)
+
+## Dependency Graph
+
+No cached dependency graph edges.
+"""
+    )
+
+    assert '<div class="impact-analysis"><ul>' in html
+
+
+def test_render_svg_graph_strips_graphviz_preamble(monkeypatch):
+    def fake_run(*args, **kwargs):
+        return subprocess.CompletedProcess(
+            args=args[0],
+            returncode=0,
+            stdout='<?xml version="1.0"?>\n<!DOCTYPE svg>\n<svg><text>graph</text></svg>\n',
+            stderr="",
+        )
+
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        fake_run,
+    )
+
+    svg = render_svg_graph([{"parent": "demo", "child": "requests"}], graph_name="demo")
+
+    assert svg == "<svg><text>graph</text></svg>"
 
 
 def test_main_command_accepts_report_format_option():
@@ -424,9 +810,10 @@ def test_report_command_writes_html_report_bundle(tmp_path, monkeypatch):
     )
 
     assert result.returncode == 0
-    reports = list(output_dir.glob("report_*.html"))
+    reports = [path for path in output_dir.glob("report_*") if path.is_dir()]
     assert len(reports) == 1
     assert reports[0].is_dir()
+    assert reports[0].suffix == ""
     assert (reports[0] / "index.html").is_file()
     assert (reports[0] / "style.css").is_file()
 

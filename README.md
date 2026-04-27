@@ -1,6 +1,6 @@
 # Changes AI: AI-powered impact analysis for software package updates
 
-[![Version](https://img.shields.io/badge/version-0.6.2-blue)](https://github.com/pzanna/changes-ai)
+[![Version](https://img.shields.io/badge/version-0.6.3-blue)](https://github.com/pzanna/changes-ai)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
 [![GitHub last commit](https://img.shields.io/github/last-commit/pzanna/changes-ai)](https://github.com/pzanna/changes-ai/commits/main)
@@ -11,6 +11,8 @@
 </p>
 
 ## News
+
+- **[27/04/2026]** Bug fix release (v0.6.3) — Shiny new `GraphViz` dependency graphs added to html and pdf reports.
 
 - **[26/04/2026]** 🎉 First preview release (v0.6.2)!!
 
@@ -109,9 +111,10 @@ For local development:
 pip install -e ".[dev]"
 ```
 
-For PDF reports on MacOS:
+For graphic dependency diagrams and PDF reports on MacOS:
 
 ```bash
+brew install graphviz
 brew install pango
 ```
 
@@ -144,10 +147,10 @@ changes-ai cache clear [--source SOURCE]
 | `--format {json,table,md,html,pdf,sarif,dot}` | Report output format for `changes-ai report` and scan-generated summary reports (default: `CHANGES_AI_REPORT_FORMAT`; `json` for `report`, `md` for scan output) |
 | `--report-template TEMPLATE_OR_CSS` | PDF report template name or path to a custom CSS file for `changes-ai report` and scan-generated summary reports (default: `CHANGES_AI_REPORT_TEMPLATE` or the built-in template) |
 | `--chart` | Generate a dependency chart |
-| `--chart-format {mermaid,ascii,dot,both}` | Chart format (default: `ascii`) |
-| `--transitive` | Include transitive (sub-)dependencies in the Mermaid chart |
+| `--chart-format {mermaid,ascii,dot,both}` | Chart format for `--chart` output only (default: `ascii`); it does not control HTML/PDF report graph rendering |
+| `--transitive` | Include transitive (sub-)dependencies in generated dependency charts; HTML/PDF report graphs use the same cached depth |
 | `--chart-output FILE` | Write the selected chart format to `FILE` instead of stdout |
-| `--report-output DIR_OR_FILE` | Write a summary report to a file or directory; directory outputs use `report_YYYYMMDD_HHMMSS.<format>`, and html reports create a folder containing `index.html` and `style.css` |
+| `--report-output DIR_OR_FILE` | Write a summary report to a file or directory; directory outputs use `report_YYYYMMDD_HHMMSS.<format>`, except html reports which create a `report_YYYYMMDD_HHMMSS/` folder containing `index.html` and `style.css` |
 | `--all` | Run the full analysis suite: dependency chart, CVE scan, usage analysis, LLM impact analysis, and remediation planning |
 | `--cve-scan` | Scan packages with concrete installed versions for known CVEs via the [OSV](https://osv.dev/) database; range-only or unpinned specs are skipped with a warning unless a local venv provides the installed version |
 | `--severity-threshold LEVEL` | Only display CVEs at or above this level: `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `UNKNOWN` (default: `LOW`) |
@@ -193,6 +196,9 @@ changes-ai --url https://github.com/owner/repo --chart --chart-format dot --char
 
 # Include transitive dependencies in the chart
 changes-ai --url https://github.com/owner/repo --chart --transitive
+
+# Generate a report whose embedded dependency graph includes transitive edges
+changes-ai --source /path/to/project --transitive --report-output ./reports --format html
 
 # Re-run using only cached libraries.io data
 changes-ai scan --source /path/to/project --offline
@@ -254,7 +260,20 @@ changes-ai --source /path/to/project \
 | `requirements/main.txt` | pip |
 | `requirements/prod.txt` | pip |
 | `pyproject.toml` | PEP 621 (`[project.dependencies]`) and Poetry (`[tool.poetry.dependencies]`) |
+| `environment.yml` | Conda environment manifest (`dependencies`, including nested `pip:` lists) |
 | `uv.lock` | uv lockfile (TOML) |
+
+## Report Graph Rendering
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/pzanna/changes-ai/main/docs/dependency_graph.png" alt="Dependency Graph" />
+</p>
+
+- HTML and PDF reports try to prerender the `Dependency Graph` section as inline SVG using local Graphviz (`dot`).
+- The embedded report graph uses the cached dependency edges collected during the scan.
+- `--transitive` still controls graph depth. Without it, reports show direct dependencies only; with it, reports include cached transitive edges.
+- `--chart-format` still applies only to `--chart` CLI output. It does not change the graph renderer used inside HTML or PDF reports.
+- If Graphviz is unavailable or SVG rendering fails, reports fall back to the text edge list.
 
 ## Sample output
 
@@ -356,6 +375,8 @@ urllib3    1.26.5 → 1.26.11      patch   ○ LOW (0.02)       ✓ HIGH
 | `1` | Tool error |
 | `2` | One or more vulnerabilities found at or above the `--fail-on` threshold |
 
+**Sample Report** files are available in the `sample-reports/` directory.
+
 ## Configuration via `.env` file
 
 Create a `.env` file in the project directory to store API keys so you never
@@ -402,6 +423,10 @@ Key priority: CLI flag → environment variable → `.env` file.
 | `CHANGES_AI_REPORT_TEMPLATE` | Optional | Default PDF report template name or path to a custom CSS file |
 | `CHANGES_AI_CHART_OUTPUT` | Optional | Default dependency chart output path |
 
+Graphviz is optional, but required if you want HTML or PDF reports to embed a
+prerendered dependency graph. Install it locally so the `dot` command is on
+your `PATH`.
+
 When `--usage-analysis` is enabled, Changes AI refuses to send source-derived
 symbol data to known hosted commercial LLM endpoints unless you opt in with
 `--allow-commercial-usage-data` or `CHANGES_AI_ALLOW_COMMERCIAL_USAGE_DATA=1`.
@@ -445,7 +470,7 @@ commercial endpoints require explicit opt-in. For stricter handling, either:
 
 ## Roadmap
 
-The current release (**v0.6.2**) covers package discovery, version mapping,
+The current release (**v0.6.3**) covers package discovery, version mapping,
 dependency charts, CVE scanning, AST-based usage analysis, LLM-backed
 impact analysis, the LLM remediation planner, SQLite-backed libraries.io, OSV,
 PyPI, and LLM response caching, offline/refresh controls, stage-focused `scan`,

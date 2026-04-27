@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import json
 
-from .graph import render_dot_graph
+from .graph import (
+    build_package_states,
+    render_dot_graph,
+    render_svg_graph,
+)
 from .render_report import render_report_html_bundle, render_report_pdf
 
 SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "UNKNOWN": 4}
@@ -34,7 +38,196 @@ def _group_by(items: list[dict], key: str) -> dict[str, list[dict]]:
     return grouped
 
 
-def render_markdown_report(report: dict) -> str:
+def _report_dependency_graph_states(report: dict) -> dict[str, str]:
+    """Return report-graph package states.
+
+    HTML/PDF reports keep the pre-remediation severity view so vulnerable
+    packages remain colour-coded by severity in the dependency graph.
+    ``no_fix`` markers are preserved, but upgrade-path styling is not
+    applied in this view.
+    """
+    return build_package_states(report, include_upgrades=False)
+
+
+def _report_dependency_graph_focus(report: dict) -> set[str]:
+    """Return the package names that should drive the report graph.
+
+    Prefer the packages surfaced in the Impact Summary. When there are no
+    impact reports, fall back to the packages that carry vulnerability
+    state in the report.
+    """
+    impacts = report.get("impact_reports") or []
+    focus = {
+        str(item.get("package") or "")
+        for item in impacts
+        if str(item.get("package") or "").strip()
+    }
+    if focus:
+        return focus
+    return set(_report_dependency_graph_states(report))
+
+
+def _filter_report_graph_edges(
+    edges: list[dict], focus_packages: set[str]
+) -> list[dict]:
+    """Keep focus packages plus their upstream context.
+
+    The report graph should stay focused on impact-summary packages, but
+    those nodes still need enough ancestry to remain connected back to the
+    project root when possible. Downstream children are intentionally
+    excluded so the graph does not expand back into the full dependency DAG.
+    """
+    if not focus_packages:
+        return list(edges)
+
+    focus_norm = {str(name).lower().replace("_", "-") for name in focus_packages}
+    incoming: dict[str, list[tuple[str, str]]] = {}
+    for edge in edges:
+        parent = str(edge.get("parent") or "")
+        child = str(edge.get("child") or "")
+        incoming.setdefault(child.lower().replace("_", "-"), []).append((parent, child))
+
+    keep: set[tuple[str, str]] = set()
+    stack = list(focus_norm)
+    seen: set[str] = set()
+
+    while stack:
+        current = stack.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        for parent, child in incoming.get(current, []):
+            keep.add((parent, child))
+            stack.append(parent.lower().replace("_", "-"))
+
+    filtered: list[dict] = []
+    emitted: set[tuple[str, str]] = set()
+    for edge in edges:
+        parent = str(edge.get("parent") or "")
+        child = str(edge.get("child") or "")
+        key = (parent, child)
+        if key not in keep or key in emitted:
+            continue
+        filtered.append({"parent": parent, "child": child})
+        emitted.add(key)
+    return filtered
+
+
+def _render_dependency_graph_svg(report: dict) -> str | None:
+    run = report.get("run", {})
+    graph = report.get("graph", {})
+    edges = graph.get("edges") or []
+    if not edges:
+        return None
+    package_states = _report_dependency_graph_states(report)
+    focus_packages = _report_dependency_graph_focus(report)
+    graph_edges = _filter_report_graph_edges(edges, focus_packages)
+    if not graph_edges:
+        graph_edges = edges
+    return render_svg_graph(
+        graph_edges,
+        graph_name=str(run.get("locator") or "changes_ai"),
+        package_states=package_states,
+    )
+
+
+# Visual key swatches. Severities use fill colours from SEVERITY_PALETTE
+# in graph.py; actions use border colours from ACTION_PALETTE. Order
+# matches the visual hierarchy (severity left-to-right by tier, then
+# remediation actions).
+_GRAPH_KEY_SEVERITIES = [
+    ("critical", "Critical", "#FEE2E2", "#991B1B"),
+    ("high", "High", "#FFEDD5", "#9A3412"),
+    ("medium", "Medium", "#FEF3C7", "#92400E"),
+    ("low", "Low", "#DBEAFE", "#1E40AF"),
+    ("unknown", "Unknown", "#F3F4F6", "#4B5563"),
+]
+_GRAPH_KEY_ACTIONS = [
+    ("upgraded", "Upgraded", "#047857"),
+    ("no_fix", "No fix available", "#7F1D1D"),
+]
+
+
+def _render_dependency_graph_key(report: dict) -> str | None:
+    """Build an HTML colour key for the dependency graph.
+
+    Adaptive: only emits swatches for severities and actions that
+    actually appear in the current report. A run with no CRITICAL
+    findings won't show a CRITICAL swatch.
+    """
+    states = _report_dependency_graph_states(report)
+    focus_packages = _report_dependency_graph_focus(report)
+    if focus_packages:
+        focus_norm = {str(name).lower().replace("_", "-") for name in focus_packages}
+        states = {
+            name: state
+            for name, state in states.items()
+            if str(name).lower().replace("_", "-") in focus_norm
+        }
+    if not states:
+        return None
+
+    present_severities = set()
+    present_actions = set()
+    for record in states.values():
+        if isinstance(record, dict):
+            sev = record.get("severity")
+            act = record.get("action")
+        else:
+            value = str(record).lower()
+            if value in {"critical", "high", "medium", "low", "unknown"}:
+                sev = value
+                act = None
+            elif value in {"upgraded", "no_fix"}:
+                sev = None
+                act = value
+            else:
+                sev = value
+                act = None
+        if sev:
+            present_severities.add(sev.lower())
+        if act:
+            present_actions.add(act.lower())
+
+    if not present_severities and not present_actions:
+        return None
+
+    items: list[str] = []
+
+    for key, label, fill, text in _GRAPH_KEY_SEVERITIES:
+        if key not in present_severities:
+            continue
+        items.append(
+            f'<span class="key-item">'
+            f'<span class="key-swatch" style="background:{fill};color:{text};'
+            f'border-color:{text}">{label}</span>'
+            f"</span>"
+        )
+
+    for key, label, border in _GRAPH_KEY_ACTIONS:
+        if key not in present_actions:
+            continue
+        items.append(
+            f'<span class="key-item">'
+            f'<span class="key-swatch key-swatch--border" '
+            f'style="border-color:{border}">{label}</span>'
+            f"</span>"
+        )
+
+    if not items:
+        return None
+
+    return (
+        '<div class="dependency-graph-key">'
+        '<span class="key-label">Key:</span>' + "".join(items) + "</div>"
+    )
+
+
+def render_markdown_report(
+    report: dict,
+    dependency_graph_svg: str | None = None,
+    dependency_graph_key: str | None = None,
+) -> str:
     run = report.get("run", {})
     packages = report.get("packages", [])
     currency = report.get("currency", [])
@@ -183,12 +376,23 @@ def render_markdown_report(report: dict) -> str:
     lines.extend(["", "## Dependency Graph", ""])
     edges = graph.get("edges") or []
     if edges:
-        lines.append(f"Cached edges: {len(edges)}")
-        lines.append("")
-        for edge in edges[:25]:
-            lines.append(f"- {edge.get('parent')} -> {edge.get('child')}")
-        if len(edges) > 25:
-            lines.append(f"- ... {len(edges) - 25} more edges")
+        if dependency_graph_svg:
+            lines.extend(
+                [
+                    '<div class="dependency-graph-svg">',
+                    dependency_graph_svg,
+                    "</div>",
+                ]
+            )
+            if dependency_graph_key:
+                lines.append(dependency_graph_key)
+        else:
+            lines.append(f"Cached edges: {len(edges)}")
+            lines.append("")
+            for edge in edges[:25]:
+                lines.append(f"- {edge.get('parent')} -> {edge.get('child')}")
+            if len(edges) > 25:
+                lines.append(f"- ... {len(edges) - 25} more edges")
     else:
         lines.append("No cached dependency graph edges.")
 
@@ -232,6 +436,7 @@ def render_markdown_report(report: dict) -> str:
             "",
             "- Cached reports reflect the data available when the run was recorded.",
             "- Missing usage, unresolved usage, missing changelog evidence, and LLM fallback paths lower confidence.",
+            "- LLM-generated results are not guaranteed to be factually accurate and should be verified before being used as a basis for action.",
         ]
     )
     return "\n".join(lines).rstrip() + "\n"
@@ -343,7 +548,9 @@ def render_dot_report(report: dict) -> str:
     run = report.get("run", {})
     graph = report.get("graph", {})
     return render_dot_graph(
-        graph.get("edges") or [], graph_name=str(run.get("locator") or "changes_ai")
+        graph.get("edges") or [],
+        graph_name=str(run.get("locator") or "changes_ai"),
+        package_states=build_package_states(report),
     )
 
 
@@ -352,7 +559,11 @@ def render_pdf_report(report: dict, css_path: str | None = None) -> bytes:
 
     The styling lives in /templates/reports folder. See that module for customisation options.
     """
-    markdown = render_markdown_report(report)
+    markdown = render_markdown_report(
+        report,
+        dependency_graph_svg=_render_dependency_graph_svg(report),
+        dependency_graph_key=_render_dependency_graph_key(report),
+    )
     return render_report_pdf(markdown, css_path=css_path)
 
 
@@ -360,5 +571,9 @@ def render_html_report_bundle(
     report: dict, css_path: str | None = None
 ) -> dict[str, str]:
     """Render an HTML report bundle with index.html and style.css assets."""
-    markdown = render_markdown_report(report)
+    markdown = render_markdown_report(
+        report,
+        dependency_graph_svg=_render_dependency_graph_svg(report),
+        dependency_graph_key=_render_dependency_graph_key(report),
+    )
     return render_report_html_bundle(markdown, css_path=css_path)
