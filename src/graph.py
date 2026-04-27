@@ -397,7 +397,7 @@ def _select_engine(edges: list[dict]) -> tuple[str, bool, float]:
     Returns ``(engine, use_unflatten, ranksep)``.
 
     Decision logic:
-    * Shallow graphs (depth <= 1) with > 8 nodes go to ``twopi`` (radial).
+    * Shallow graphs (depth <= 1) with > 3 nodes go to ``twopi`` (radial).
       Flat graphs with one root + N leaves are precisely the case ``dot``
       can't handle without becoming wide-and-thin. Radial naturally fits
       a square aspect ratio.
