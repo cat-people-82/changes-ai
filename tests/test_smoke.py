@@ -230,6 +230,36 @@ No cached vulnerabilities for this run.
     assert "This run found a limited amount of upgrade risk" in html
 
 
+def test_report_html_wraps_impact_analysis_list():
+    html = render_report_html(
+        """# Changes AI Remediation Report
+
+## Executive Summary
+
+- Run ID: 1
+- Target: demo
+- Packages analysed: 1
+- Vulnerabilities found: 1
+- Remediation paths: 0
+
+## Impact Summary
+
+| Package | Upgrade | Breakage | Confidence |
+|---|---|---|---|
+| requests | 2.31.0 -> 2.32.0 | low (0.2) | medium |
+
+- requests 2.31.0 -> 2.32.0: Release notes mention a transport-layer change.
+  Citation: changelog - requests 2.32.0 (https://example.com/requests-2.32.0)
+
+## Dependency Graph
+
+No cached dependency graph edges.
+"""
+    )
+
+    assert '<div class="impact-analysis"><ul>' in html
+
+
 def test_main_command_accepts_report_format_option():
     result = subprocess.run(
         [

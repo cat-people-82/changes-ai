@@ -7,6 +7,10 @@ published as preview milestones until the public API and CLI behavior stabilize.
 
 ## [0.6.3] - 2026-04-27
 
+### Added
+
+- Added CSS styling the evidence list in HTML reports to improve readability and visual distinction of different evidence types.
+
 ### Fixed
 
 - Mermaid graph now render in non-markdown reports.
