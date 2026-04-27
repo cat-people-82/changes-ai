@@ -265,6 +265,10 @@ changes-ai --source /path/to/project \
 
 ## Report Graph Rendering
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/pzanna/changes-ai/main/docs/dependency_graph.png" alt="Dependency Graph" />
+</p>
+
 - HTML and PDF reports try to prerender the `Dependency Graph` section as inline SVG using local Graphviz (`dot`).
 - The embedded report graph uses the cached dependency edges collected during the scan.
 - `--transitive` still controls graph depth. Without it, reports show direct dependencies only; with it, reports include cached transitive edges.
@@ -370,6 +374,8 @@ urllib3    1.26.5 → 1.26.11      patch   ○ LOW (0.02)       ✓ HIGH
 | `0` | No vulnerabilities at or above the threshold |
 | `1` | Tool error |
 | `2` | One or more vulnerabilities found at or above the `--fail-on` threshold |
+
+Sample report files are available in the `sample-reports/` directory.
 
 ## Configuration via `.env` file
 
