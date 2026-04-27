@@ -12,7 +12,7 @@
 
 ## News
 
-- **[27/04/2026]** Bug fix release (v0.6.3) — Mermaid graphs now render in non-markdown reports.
+- **[27/04/2026]** Bug fix release (v0.6.3) — Shiny new `GraphViz` dependency graphs added to html and pdf reports.
 
 - **[26/04/2026]** 🎉 First preview release (v0.6.2)!!
 
