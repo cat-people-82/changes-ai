@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from .graph import render_dot_graph, render_svg_graph
+from .graph import build_package_states, render_dot_graph, render_svg_graph
 from .render_report import render_report_html_bundle, render_report_pdf
 
 SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "UNKNOWN": 4}
@@ -43,10 +43,93 @@ def _render_dependency_graph_svg(report: dict) -> str | None:
     return render_svg_graph(
         edges,
         graph_name=str(run.get("locator") or "changes_ai"),
+        package_states=build_package_states(report),
     )
 
 
-def render_markdown_report(report: dict, dependency_graph_svg: str | None = None) -> str:
+# Visual key swatches. Severities use fill colours from SEVERITY_PALETTE
+# in graph.py; actions use border colours from ACTION_PALETTE. Order
+# matches the visual hierarchy (severity left-to-right by tier, then
+# remediation actions).
+_GRAPH_KEY_SEVERITIES = [
+    ("critical", "Critical", "#FEE2E2", "#991B1B"),
+    ("high",     "High",     "#FFEDD5", "#9A3412"),
+    ("medium",   "Medium",   "#FEF3C7", "#92400E"),
+    ("low",      "Low",      "#DBEAFE", "#1E40AF"),
+    ("unknown",  "Unknown",  "#F3F4F6", "#4B5563"),
+]
+_GRAPH_KEY_ACTIONS = [
+    ("upgraded", "Upgraded",        "#047857"),
+    ("no_fix",   "No fix available", "#7F1D1D"),
+]
+
+
+def _render_dependency_graph_key(report: dict) -> str | None:
+    """Build an HTML colour key for the dependency graph.
+
+    Adaptive: only emits swatches for severities and actions that
+    actually appear in the current report. A run with no CRITICAL
+    findings won't show a CRITICAL swatch.
+    """
+    states = build_package_states(report)
+    if not states:
+        return None
+
+    present_severities = set()
+    present_actions = set()
+    for record in states.values():
+        if isinstance(record, dict):
+            sev = record.get("severity")
+            act = record.get("action")
+        else:
+            sev = record
+            act = None
+        if sev:
+            present_severities.add(sev.lower())
+        if act:
+            present_actions.add(act.lower())
+
+    if not present_severities and not present_actions:
+        return None
+
+    items: list[str] = []
+
+    for key, label, fill, text in _GRAPH_KEY_SEVERITIES:
+        if key not in present_severities:
+            continue
+        items.append(
+            f'<span class="key-item">'
+            f'<span class="key-swatch" style="background:{fill};color:{text};'
+            f'border-color:{text}">{label}</span>'
+            f'</span>'
+        )
+
+    for key, label, border in _GRAPH_KEY_ACTIONS:
+        if key not in present_actions:
+            continue
+        items.append(
+            f'<span class="key-item">'
+            f'<span class="key-swatch key-swatch--border" '
+            f'style="border-color:{border}">{label}</span>'
+            f'</span>'
+        )
+
+    if not items:
+        return None
+
+    return (
+        '<div class="dependency-graph-key">'
+        '<span class="key-label">Key:</span>'
+        + "".join(items)
+        + '</div>'
+    )
+
+
+def render_markdown_report(
+    report: dict,
+    dependency_graph_svg: str | None = None,
+    dependency_graph_key: str | None = None,
+) -> str:
     run = report.get("run", {})
     packages = report.get("packages", [])
     currency = report.get("currency", [])
@@ -203,6 +286,8 @@ def render_markdown_report(report: dict, dependency_graph_svg: str | None = None
                     "</div>",
                 ]
             )
+            if dependency_graph_key:
+                lines.append(dependency_graph_key)
         else:
             lines.append(f"Cached edges: {len(edges)}")
             lines.append("")
@@ -365,7 +450,9 @@ def render_dot_report(report: dict) -> str:
     run = report.get("run", {})
     graph = report.get("graph", {})
     return render_dot_graph(
-        graph.get("edges") or [], graph_name=str(run.get("locator") or "changes_ai")
+        graph.get("edges") or [],
+        graph_name=str(run.get("locator") or "changes_ai"),
+        package_states=build_package_states(report),
     )
 
 
@@ -377,6 +464,7 @@ def render_pdf_report(report: dict, css_path: str | None = None) -> bytes:
     markdown = render_markdown_report(
         report,
         dependency_graph_svg=_render_dependency_graph_svg(report),
+        dependency_graph_key=_render_dependency_graph_key(report),
     )
     return render_report_pdf(markdown, css_path=css_path)
 
@@ -388,5 +476,6 @@ def render_html_report_bundle(
     markdown = render_markdown_report(
         report,
         dependency_graph_svg=_render_dependency_graph_svg(report),
+        dependency_graph_key=_render_dependency_graph_key(report),
     )
     return render_report_html_bundle(markdown, css_path=css_path)

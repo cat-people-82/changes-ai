@@ -343,7 +343,7 @@ tbody tr.row-LOW      td:first-child { border-left: 2pt solid #1E40AF; }
 /* ---- Lists ------------------------------------------------- */
 .dependency-graph-svg {
   width: 95%;
-  margin: 8px auto 18px auto;
+  margin: 8px auto 0 auto;
   padding: 12px 14px;
   border: 0.5pt solid #d1d5db;
   background: #ffffff;
@@ -354,6 +354,51 @@ tbody tr.row-LOW      td:first-child { border-left: 2pt solid #1E40AF; }
   display: block;
   width: 100%;
   height: auto;
+}
+
+/* ---- Dependency graph colour key --------------------------- */
+
+.dependency-graph-key {
+  width: 95%;
+  margin: 0 auto 18px auto;
+  padding: 9px 14px;
+  border: 0.5pt solid #d1d5db;
+  border-top: none;
+  background: #fafbfc;
+  font-size: 8pt;
+  page-break-inside: avoid;
+}
+
+.dependency-graph-key .key-label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 7.5pt;
+  color: #6b7280;
+  font-weight: 600;
+  margin-right: 11px;
+}
+
+.dependency-graph-key .key-item {
+  display: inline-block;
+  margin-right: 11px;
+  vertical-align: middle;
+}
+
+.dependency-graph-key .key-swatch {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 5px;
+  font-size: 7.5pt;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  border: 0.5pt solid transparent;
+  vertical-align: middle;
+}
+
+.dependency-graph-key .key-swatch--border {
+  background: #ffffff;
+  color: #1a1a1a;
+  border-width: 1.2pt;
 }
 
 .impact-analysis ul {
