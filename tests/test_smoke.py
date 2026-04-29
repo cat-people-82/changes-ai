@@ -1466,6 +1466,33 @@ def test_apply_remediation_dry_run_api_succeeds_for_python_project(
     assert result.files_modified == []
 
 
+def test_editor_build_state_starts_with_all_upgrades_selected():
+    path = RemediationPath(
+        path_type="balanced",
+        upgrades=[
+            RemediationUpgrade("requests", "2.31.0", "2.32.0", ["CVE-1"]),
+            RemediationUpgrade("urllib3", "2.5.0", "2.6.0", ["CVE-2"]),
+        ],
+        cves_resolved=["CVE-1", "CVE-2"],
+        cves_unresolved=[],
+        cves_no_fix=[],
+        exposure_score=0.1,
+        breakage_score=0.2,
+        confidence="HIGH",
+        rationale="",
+    )
+    state = remediation_editor_module.build_editor_state([path], [], [])
+
+    assert len(state.tabs) == 1
+    tab = state.tabs[0]
+    assert tab.path_type == "balanced"
+    assert {u.package for u in tab.upgrades} == {"requests", "urllib3"}
+    assert "requests" in tab.selected
+    assert "urllib3" in tab.selected
+    assert state.active_tab_index == 0
+    assert state.cursor_index == 0
+
+
 def test_editor_recalculate_matches_remediation_module():
     vulns = [
         VulnerabilityRecord("requests", "2.31.0", "CVE-1", "HIGH", [], ["2.32.0"]),
@@ -1491,18 +1518,22 @@ def test_editor_recalculate_matches_remediation_module():
             confidence="MEDIUM",
         ),
     ]
-    context = _build_planning_context(vulns, reports)
-    state = remediation_editor_module.EditorState(
-        all_paths=[],
-        all_impact_reports=reports,
-        all_vulns=vulns,
-        selected_path_type="balanced",
-        selection={
-            "requests": apply_module.UpgradeSelection("requests", "2.31.0", "2.32.0", ["CVE-1"]),
-            "urllib3": apply_module.UpgradeSelection("urllib3", "2.5.0", "2.6.0", ["CVE-2"]),
-        },
-        context=context,
+    path = RemediationPath(
+        path_type="balanced",
+        upgrades=[
+            RemediationUpgrade("requests", "2.31.0", "2.32.0", ["CVE-1"]),
+            RemediationUpgrade("urllib3", "2.5.0", "2.6.0", ["CVE-2"]),
+        ],
+        cves_resolved=["CVE-1", "CVE-2"],
+        cves_unresolved=[],
+        cves_no_fix=[],
+        exposure_score=0.1,
+        breakage_score=0.3,
+        confidence="MEDIUM",
+        rationale="",
     )
+    state = remediation_editor_module.build_editor_state([path], reports, vulns)
+    context = state.context
 
     exposure, breakage, confidence = remediation_editor_module.recalculate_scores(state)
     expected = _compute_exposure_score([], [], context["severity_map"], context["total_weight"])
@@ -1512,7 +1543,27 @@ def test_editor_recalculate_matches_remediation_module():
     assert confidence == "MEDIUM"
 
 
-def test_editor_constraint_check_flags_version_conflict():
+def test_editor_toggle_removes_package_from_selection():
+    path = RemediationPath(
+        path_type="balanced",
+        upgrades=[RemediationUpgrade("requests", "2.31.0", "2.32.0", ["CVE-1"])],
+        cves_resolved=["CVE-1"],
+        cves_unresolved=[],
+        cves_no_fix=[],
+        exposure_score=0.1,
+        breakage_score=0.2,
+        confidence="HIGH",
+        rationale="",
+    )
+    state = remediation_editor_module.build_editor_state([path], [], [])
+    assert "requests" in state.tabs[0].selected
+
+    remediation_editor_module.toggle_current(state)
+
+    assert "requests" not in state.tabs[0].selected
+
+
+def test_editor_toggle_returns_constraint_message_on_violation():
     report = ImpactReport(
         package="requests",
         installed_version="2.31.0",
@@ -1522,31 +1573,122 @@ def test_editor_constraint_check_flags_version_conflict():
         breakage_score=0.2,
         confidence="HIGH",
     )
-    state = remediation_editor_module.EditorState(
-        all_paths=[],
-        all_impact_reports=[report],
-        all_vulns=[],
-        selected_path_type="balanced",
-        selection={},
-        context={
-            "reports": {
-                ("requests", "2.31.0", "2.33.0"): {
-                    "report": report,
-                    "dependency_constraints": {"urllib3": ">=2.6.0"},
-                }
-            }
-        },
+    path = RemediationPath(
+        path_type="balanced",
+        upgrades=[
+            RemediationUpgrade("requests", "2.31.0", "2.33.0", []),
+            RemediationUpgrade("urllib3", "2.5.0", "2.5.0", []),
+        ],
+        cves_resolved=[],
+        cves_unresolved=[],
+        cves_no_fix=[],
+        exposure_score=0.1,
+        breakage_score=0.2,
+        confidence="HIGH",
+        rationale="",
     )
-    proposed = {
-        "requests": apply_module.UpgradeSelection("requests", "2.31.0", "2.33.0", []),
-        "urllib3": apply_module.UpgradeSelection("urllib3", "2.5.0", "2.5.0", []),
+    state = remediation_editor_module.build_editor_state([path], [report], [])
+    state.context["reports"] = {
+        ("requests", "2.31.0", "2.33.0"): {
+            "report": report,
+            "dependency_constraints": {"urllib3": ">=2.6.0"},
+        }
     }
+    # cursor is at requests (index 0) — toggle it off then back on triggers check
+    remediation_editor_module.toggle_current(state)   # deselect requests
+    remediation_editor_module.toggle_current(state)   # reselect requests — triggers constraint check
 
-    messages = remediation_editor_module.check_constraints(state, proposed)
-
+    messages = state.last_constraint_messages
     assert messages
     assert "requests" in messages[0]
     assert "urllib3" in messages[0]
+
+
+def test_editor_switch_tab_resets_cursor():
+    paths = [
+        RemediationPath(
+            path_type="balanced",
+            upgrades=[
+                RemediationUpgrade("requests", "2.31.0", "2.32.0", []),
+                RemediationUpgrade("urllib3", "2.5.0", "2.6.0", []),
+            ],
+            cves_resolved=[],
+            cves_unresolved=[],
+            cves_no_fix=[],
+            exposure_score=0.1,
+            breakage_score=0.2,
+            confidence="HIGH",
+            rationale="",
+        ),
+        RemediationPath(
+            path_type="maximum_coverage",
+            upgrades=[RemediationUpgrade("certifi", "2023.0.0", "2024.0.0", [])],
+            cves_resolved=[],
+            cves_unresolved=[],
+            cves_no_fix=[],
+            exposure_score=0.05,
+            breakage_score=0.1,
+            confidence="HIGH",
+            rationale="",
+        ),
+    ]
+    state = remediation_editor_module.build_editor_state(paths, [], [])
+    remediation_editor_module.move_cursor(state, 1)
+    assert state.cursor_index == 1
+
+    remediation_editor_module.switch_tab(state, 1)
+
+    assert state.cursor_index == 0
+    assert state.active_tab_index == 1
+
+
+def test_editor_reset_active_tab_restores_all_selected():
+    path = RemediationPath(
+        path_type="balanced",
+        upgrades=[
+            RemediationUpgrade("requests", "2.31.0", "2.32.0", []),
+            RemediationUpgrade("urllib3", "2.5.0", "2.6.0", []),
+        ],
+        cves_resolved=[],
+        cves_unresolved=[],
+        cves_no_fix=[],
+        exposure_score=0.1,
+        breakage_score=0.2,
+        confidence="HIGH",
+        rationale="",
+    )
+    state = remediation_editor_module.build_editor_state([path], [], [])
+    state.tabs[0].selected.clear()
+    assert not state.tabs[0].selected
+
+    remediation_editor_module.reset_active_tab(state)
+
+    assert "requests" in state.tabs[0].selected
+    assert "urllib3" in state.tabs[0].selected
+
+
+def test_editor_collect_selected_upgrades_preserves_order():
+    path = RemediationPath(
+        path_type="balanced",
+        upgrades=[
+            RemediationUpgrade("aaa", "1.0.0", "1.1.0", []),
+            RemediationUpgrade("bbb", "2.0.0", "2.1.0", []),
+            RemediationUpgrade("ccc", "3.0.0", "3.1.0", []),
+        ],
+        cves_resolved=[],
+        cves_unresolved=[],
+        cves_no_fix=[],
+        exposure_score=0.1,
+        breakage_score=0.1,
+        confidence="HIGH",
+        rationale="",
+    )
+    state = remediation_editor_module.build_editor_state([path], [], [])
+    state.tabs[0].selected.discard("bbb")
+
+    result = remediation_editor_module.collect_selected_upgrades(state)
+
+    assert [u.package for u in result] == ["aaa", "ccc"]
 
 
 def test_editor_skips_when_not_tty(monkeypatch, tmp_path):
@@ -1559,24 +1701,63 @@ def test_editor_skips_when_not_tty(monkeypatch, tmp_path):
         lockfile_path=None,
         lockfile_type=None,
     )
-    state = remediation_editor_module.EditorState(
-        all_paths=[],
-        all_impact_reports=[],
-        all_vulns=[],
-        selected_path_type="balanced",
-        selection={},
-        context={},
+    path = RemediationPath(
+        path_type="balanced",
+        upgrades=[RemediationUpgrade("requests", "2.28.0", "2.32.3", [])],
+        cves_resolved=[],
+        cves_unresolved=[],
+        cves_no_fix=[],
+        exposure_score=0.1,
+        breakage_score=0.1,
+        confidence="HIGH",
+        rationale="",
     )
+    state = remediation_editor_module.build_editor_state([path], [], [])
     monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
 
+    modules_before = set(sys.modules)
     result = remediation_editor_module.run_editor(state, PythonAdapter(), manifest)
+    new_modules = set(sys.modules) - modules_before
 
     assert result.action == "skipped"
     assert result.apply_result is None
-    assert manifest_path.read_text(encoding="utf-8") == "requests>=2.28.0\n"
+    assert not any("prompt_toolkit" in m for m in new_modules)
 
 
-def test_editor_render_produces_expected_sections():
+def test_editor_help_text_for_cursor_includes_evidence():
+    report = ImpactReport(
+        package="requests",
+        installed_version="2.31.0",
+        candidate_version="2.32.0",
+        version_delta="minor",
+        probable_breakage="LOW",
+        breakage_score=0.1,
+        confidence="HIGH",
+        evidence="No breaking changes detected. API is stable.",
+    )
+    path = RemediationPath(
+        path_type="balanced",
+        upgrades=[RemediationUpgrade("requests", "2.31.0", "2.32.0", ["CVE-1"])],
+        cves_resolved=["CVE-1"],
+        cves_unresolved=[],
+        cves_no_fix=[],
+        exposure_score=0.1,
+        breakage_score=0.1,
+        confidence="HIGH",
+        rationale="",
+    )
+    vulns = [VulnerabilityRecord("requests", "2.31.0", "CVE-1", "HIGH", [], ["2.32.0"])]
+    state = remediation_editor_module.build_editor_state([path], [report], vulns)
+
+    text = remediation_editor_module.help_text_for_cursor(state)
+
+    assert "requests" in text
+    assert "CVE-1" in text
+    assert "Evidence" in text
+    assert "No breaking changes" in text
+
+
+def test_editor_render_helpers_produce_formatted_text():
     path = RemediationPath(
         path_type="balanced",
         upgrades=[RemediationUpgrade("requests", "2.31.0", "2.32.0", ["CVE-1"])],
@@ -1586,172 +1767,30 @@ def test_editor_render_produces_expected_sections():
         exposure_score=0.1,
         breakage_score=0.2,
         confidence="HIGH",
-        rationale="Upgrade requests.",
+        rationale="",
     )
-    report = ImpactReport(
-        package="requests",
-        installed_version="2.31.0",
-        candidate_version="2.32.0",
-        version_delta="minor",
-        probable_breakage="LOW",
-        breakage_score=0.2,
-        confidence="HIGH",
-    )
-    state = remediation_editor_module.EditorState(
-        all_paths=[path],
-        all_impact_reports=[report],
-        all_vulns=[VulnerabilityRecord("requests", "2.31.0", "CVE-1", "HIGH", [], ["2.32.0"])],
-        selected_path_type="balanced",
-        selection={
-            "requests": apply_module.UpgradeSelection("requests", "2.31.0", "2.32.0", ["CVE-1"])
-        },
-        context=_build_planning_context(
-            [VulnerabilityRecord("requests", "2.31.0", "CVE-1", "HIGH", [], ["2.32.0"])],
-            [report],
-        ),
-    )
+    vulns = [VulnerabilityRecord("requests", "2.31.0", "CVE-1", "HIGH", [], ["2.32.0"])]
+    state = remediation_editor_module.build_editor_state([path], [], vulns)
 
-    rendered = remediation_editor_module.render_editor(state, use_color=False)
+    tab_bar = remediation_editor_module._render_tab_bar(state)
+    selection = remediation_editor_module._render_selection(state)
+    scores = remediation_editor_module._render_scores_bar(state)
+    keybindings = remediation_editor_module._render_keybindings_bar()
 
-    assert "Selected" in rendered
-    assert "Available" in rendered
-    assert "Commands" in rendered
-    assert "requests" in rendered
-    assert "CVE-1" in rendered
+    # All renderers return list of (style, text) tuples
+    for result in (tab_bar, selection, scores, keybindings):
+        assert isinstance(result, list)
+        assert all(isinstance(item, tuple) and len(item) == 2 for item in result)
 
+    tab_text = "".join(t for _, t in tab_bar)
+    assert "Balanced" in tab_text
 
-def test_editor_swap_command_replaces_selection(tmp_path):
-    manifest_path = tmp_path / "requirements.txt"
-    manifest_path.write_text("requests>=2.28.0\nurllib3>=2.0.0\n", encoding="utf-8")
-    manifest = ManifestInfo(
-        path=manifest_path,
-        file_type="pip",
-        has_lockfile=False,
-        lockfile_path=None,
-        lockfile_type=None,
-    )
-    paths = [
-        RemediationPath(
-            path_type="balanced",
-            upgrades=[RemediationUpgrade("requests", "2.31.0", "2.32.0", ["CVE-1"])],
-            cves_resolved=["CVE-1"],
-            cves_unresolved=[],
-            cves_no_fix=[],
-            exposure_score=0.2,
-            breakage_score=0.2,
-            confidence="HIGH",
-            rationale="",
-        ),
-        RemediationPath(
-            path_type="maximum_coverage",
-            upgrades=[RemediationUpgrade("urllib3", "2.5.0", "2.6.0", ["CVE-2"])],
-            cves_resolved=["CVE-2"],
-            cves_unresolved=[],
-            cves_no_fix=[],
-            exposure_score=0.1,
-            breakage_score=0.3,
-            confidence="MEDIUM",
-            rationale="",
-        ),
-    ]
-    state = remediation_editor_module.EditorState(
-        all_paths=paths,
-        all_impact_reports=[],
-        all_vulns=[],
-        selected_path_type="balanced",
-        selection={"requests": apply_module.UpgradeSelection("requests", "2.31.0", "2.32.0", ["CVE-1"])},
-        context={},
-    )
+    sel_text = "".join(t for _, t in selection)
+    assert "requests" in sel_text
+    assert "[x]" in sel_text
 
-    remediation_editor_module.execute_command("swap 1 A1", state, PythonAdapter(), manifest)
-
-    assert "urllib3" in state.selection
-    assert "requests" not in state.selection
-
-
-def test_editor_reset_command_restores_initial_selection(tmp_path):
-    manifest_path = tmp_path / "requirements.txt"
-    manifest_path.write_text("requests>=2.28.0\nurllib3>=2.0.0\n", encoding="utf-8")
-    manifest = ManifestInfo(
-        path=manifest_path,
-        file_type="pip",
-        has_lockfile=False,
-        lockfile_path=None,
-        lockfile_type=None,
-    )
-    paths = [
-        RemediationPath(
-            path_type="balanced",
-            upgrades=[RemediationUpgrade("requests", "2.31.0", "2.32.0", ["CVE-1"])],
-            cves_resolved=["CVE-1"],
-            cves_unresolved=[],
-            cves_no_fix=[],
-            exposure_score=0.2,
-            breakage_score=0.2,
-            confidence="HIGH",
-            rationale="",
-        ),
-        RemediationPath(
-            path_type="maximum_coverage",
-            upgrades=[RemediationUpgrade("urllib3", "2.5.0", "2.6.0", ["CVE-2"])],
-            cves_resolved=["CVE-2"],
-            cves_unresolved=[],
-            cves_no_fix=[],
-            exposure_score=0.1,
-            breakage_score=0.3,
-            confidence="MEDIUM",
-            rationale="",
-        ),
-    ]
-    state = remediation_editor_module.EditorState(
-        all_paths=paths,
-        all_impact_reports=[],
-        all_vulns=[],
-        selected_path_type="balanced",
-        selection={"urllib3": apply_module.UpgradeSelection("urllib3", "2.5.0", "2.6.0", ["CVE-2"])},
-        context={},
-    )
-
-    remediation_editor_module.execute_command("reset", state, PythonAdapter(), manifest)
-
-    assert set(state.selection) == {"requests"}
-
-
-def test_editor_preview_does_not_modify_manifest(monkeypatch, tmp_path):
-    manifest_path = tmp_path / "requirements.txt"
-    original = "requests>=2.28.0\n"
-    manifest_path.write_text(original, encoding="utf-8")
-    manifest = ManifestInfo(
-        path=manifest_path,
-        file_type="pip",
-        has_lockfile=False,
-        lockfile_path=None,
-        lockfile_type=None,
-    )
-    state = remediation_editor_module.EditorState(
-        all_paths=[],
-        all_impact_reports=[],
-        all_vulns=[],
-        selected_path_type="balanced",
-        selection={"requests": apply_module.UpgradeSelection("requests", "2.28.0", "2.32.3", [])},
-        context={},
-    )
-    monkeypatch.setattr(
-        PythonAdapter,
-        "dry_run_validate",
-        lambda self, manifest, upgrades, environment_root: (True, ""),
-    )
-
-    message, result = remediation_editor_module.execute_command(
-        "preview",
-        state,
-        PythonAdapter(),
-        manifest,
-    )
-
-    assert result is None
-    assert "--- " in message
-    assert manifest_path.read_text(encoding="utf-8") == original
+    kb_text = "".join(t for _, t in keybindings)
+    assert "toggle" in kb_text
 
 
 def _run_main_with_args(monkeypatch, argv):
