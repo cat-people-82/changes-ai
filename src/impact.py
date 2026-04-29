@@ -17,7 +17,10 @@ from urllib.parse import urlparse
 
 import requests
 
-from src.cache import SQLiteCache
+try:
+    from .cache import SQLiteCache
+except ImportError:  # pragma: no cover - direct script execution path
+    from src.cache import SQLiteCache
 
 
 # ---------------------------------------------------------------------------

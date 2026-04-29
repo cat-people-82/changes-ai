@@ -9,7 +9,6 @@ a version mapping and dependency chart.
 
 import argparse
 from contextlib import redirect_stdout
-from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import io
 import json
@@ -91,6 +90,15 @@ DEPENDENCY_CANDIDATES = [
     ("environment.yml", "conda"),
     ("uv.lock", "uv"),
 ]
+
+
+def _load_yaml_module():
+    """Return the optional PyYAML module when available."""
+    try:
+        import yaml
+    except ImportError:
+        return None
+    return yaml
 
 
 def parse_github_url(url: str) -> tuple[str, str]:
@@ -288,6 +296,76 @@ class DependencyParser:
     @staticmethod
     def parse_conda_environment_yml(content: str) -> dict:
         """Parse a Conda ``environment.yml`` dependency list."""
+        yaml = _load_yaml_module()
+        if yaml is None:
+            print(
+                "Warning: PyYAML not available – falling back to line-based environment.yml parsing.",
+                file=sys.stderr,
+            )
+            return DependencyParser._parse_conda_environment_yml_fallback(content)
+
+        try:
+            data = yaml.safe_load(content) or {}
+        except Exception as exc:  # noqa: BLE001
+            print(
+                f"Warning: Failed to parse environment.yml as YAML: {exc}. Falling back to line-based parser.",
+                file=sys.stderr,
+            )
+            return DependencyParser._parse_conda_environment_yml_fallback(content)
+
+        dependencies = data.get("dependencies")
+        if not isinstance(dependencies, list):
+            return {}
+
+        packages: dict = {}
+        for entry in dependencies:
+            if isinstance(entry, str):
+                name, spec_str = DependencyParser._parse_conda_dependency_entry(entry)
+                if name:
+                    packages[name] = spec_str
+                continue
+            if isinstance(entry, dict):
+                pip_entries = entry.get("pip")
+                if not isinstance(pip_entries, list):
+                    continue
+                for pip_entry in pip_entries:
+                    if not isinstance(pip_entry, str):
+                        continue
+                    parsed = DependencyParser._parse_requirement_entry(pip_entry)
+                    if parsed is None:
+                        continue
+                    name, spec_str = parsed
+                    packages[name] = spec_str
+        return packages
+
+    @staticmethod
+    def _parse_conda_dependency_entry(entry: str) -> tuple[str | None, str | None]:
+        """Parse one conda dependency string into ``(name, specifier)``."""
+        entry = entry.split("#")[0].strip()
+        if not entry:
+            return None, None
+
+        if "::" in entry:
+            entry = entry.split("::", 1)[1].strip()
+
+        conda_match = re.match(
+            r"^([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)(.*)$",
+            entry,
+        )
+        if not conda_match:
+            return None, None
+
+        name = conda_match.group(1)
+        spec_str = conda_match.group(2).strip()
+        if spec_str.startswith("=") and not spec_str.startswith(
+            ("==", ">=", "<=", "!=", "~=")
+        ):
+            spec_str = f"=={spec_str[1:]}"
+        return name, spec_str if spec_str else None
+
+    @staticmethod
+    def _parse_conda_environment_yml_fallback(content: str) -> dict:
+        """Parse a Conda ``environment.yml`` without requiring PyYAML."""
         packages: dict = {}
         in_dependencies = False
         in_pip_block = False
@@ -329,27 +407,10 @@ class DependencyParser:
                 pip_indent = indent
                 continue
 
-            entry = entry.split("#")[0].strip()
-            if not entry:
+            name, spec_str = DependencyParser._parse_conda_dependency_entry(entry)
+            if not name:
                 continue
-
-            if "::" in entry:
-                entry = entry.split("::", 1)[1].strip()
-
-            conda_match = re.match(
-                r"^([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)(.*)$",
-                entry,
-            )
-            if not conda_match:
-                continue
-
-            name = conda_match.group(1)
-            spec_str = conda_match.group(2).strip()
-            if spec_str.startswith("=") and not spec_str.startswith(
-                ("==", ">=", "<=", "!=", "~=")
-            ):
-                spec_str = f"=={spec_str[1:]}"
-            packages[name] = spec_str if spec_str else None
+            packages[name] = spec_str
 
         return packages
 
@@ -637,6 +698,8 @@ def build_version_mapping(
     venv_pkgs: dict | None = None,
 ) -> list:
     """Fetch latest versions and return a list of version-mapping dicts."""
+    from concurrent.futures import ThreadPoolExecutor
+
     if not packages:
         return []
 

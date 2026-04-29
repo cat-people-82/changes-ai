@@ -16,6 +16,17 @@ published as preview milestones until the public API and CLI behavior stabilize.
 ### Fixed
 
 - Updated installation notes for pdf/graph packages to include Linux in the README
+- Fixed broken HTML in the impact table: closing </td> tag was missing its < prefix
+  on rows with a major version delta.
+- render_dot_report DOT export now uses the same severity-only view as the HTML
+  and PDF report graphs.
+- PyYAML added to declared dependencies; missing it no longer causes a raw
+  ModuleNotFoundError on conda project scans.
+- Removed unused ThreadPoolExecutor import from changes_ai.py.
+- SARIF informationUri corrected from placeholder <https://github.com/> to
+  <https://github.com/pzanna/changes-ai>.
+- pyproject.toml packaging layout now uses [tool.setuptools.package-dir] to
+  register the package as changes_ai rather than src.
 
 ## [0.6.3] - 27-04-2026
 

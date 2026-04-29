@@ -13,6 +13,7 @@ authors = [
     { name = "Paul Zanna" },
 ]
 dependencies = [
+    "PyYAML>=6.0",
     "openai>=2.32.0",
     "python-dotenv>=1.0.0",
     "requests>=2.28.0",
@@ -27,10 +28,13 @@ dev = [
 ]
 
 [project.scripts]
-changes-ai = "src.changes_ai:main"
+changes-ai = "changes_ai.changes_ai:main"
 
 [tool.setuptools]
-packages = ["src"]
+packages = ["changes_ai"]
+
+[tool.setuptools.package-dir]
+changes_ai = "src"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

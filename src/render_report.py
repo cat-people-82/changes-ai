@@ -264,6 +264,11 @@ def _wrap_impact_analysis(html: str) -> str:
     return pattern.sub(repl, html, count=1)
 
 
+def _repair_broken_table_cell_tags(html: str) -> str:
+    """Repair malformed ``/td>`` or ``/th>`` sequences in generated HTML."""
+    return re.sub(r"(?<!<)/(t[dh])>", r"</\1>", html)
+
+
 def _add_section_rules(html: str) -> str:
     """Insert a gold accent rule before each h2 (except those already
     inside a .limitations wrapper, which has its own treatment)."""
@@ -358,6 +363,7 @@ def _build_report_html_document(md_text: str, stylesheet_markup: str) -> str:
     body_md = re.sub(r"^# .+?\n+", "", body_md, count=1)
 
     body_html = md_lib.markdown(body_md, extensions=["tables", "sane_lists"])
+    body_html = _repair_broken_table_cell_tags(body_html)
     body_html = _wrap_severity_cells(body_html)
     body_html = _wrap_remediation_paths(body_html)
     body_html = _wrap_limitations(body_html)

@@ -16,8 +16,12 @@ import re
 import sys
 from dataclasses import dataclass, field
 
-from src.impact import LLMClient
-from src.cache import SQLiteCache
+try:
+    from .cache import SQLiteCache
+    from .impact import LLMClient
+except ImportError:  # pragma: no cover - direct script execution path
+    from src.cache import SQLiteCache
+    from src.impact import LLMClient
 
 
 # ---------------------------------------------------------------------------

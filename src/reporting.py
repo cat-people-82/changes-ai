@@ -562,7 +562,7 @@ def render_sarif_report(report: dict) -> str:
                 "tool": {
                     "driver": {
                         "name": "Changes AI",
-                        "informationUri": "https://github.com/",
+                        "informationUri": "https://github.com/pzanna/changes-ai",
                         "rules": rules,
                     }
                 },
@@ -579,7 +579,7 @@ def render_dot_report(report: dict) -> str:
     return render_dot_graph(
         graph.get("edges") or [],
         graph_name=str(run.get("locator") or "changes_ai"),
-        package_states=build_package_states(report),
+        package_states=_report_dependency_graph_states(report),
     )
 
 

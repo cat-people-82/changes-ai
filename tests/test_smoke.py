@@ -1,10 +1,12 @@
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
 import src
+import src.changes_ai as changes_ai_module
 import src.graph as graph_module
 import src.reporting as reporting_module
 from src.cache import SQLiteCache
@@ -104,6 +106,22 @@ dependencies:
         "pip": None,
         "gymnasium": "==1.2.0",
         "tensorboard": ">=2.16",
+    }
+
+
+def test_dependency_parser_handles_conda_environment_without_pyyaml(monkeypatch):
+    content = """
+dependencies:
+  - python=3.11
+  - pip:
+      - gymnasium==1.2.0
+"""
+
+    monkeypatch.setattr(changes_ai_module, "_load_yaml_module", lambda: None)
+
+    assert DependencyParser.parse(content, "conda") == {
+        "python": "==3.11",
+        "gymnasium": "==1.2.0",
     }
 
 
@@ -507,6 +525,30 @@ No cached vulnerabilities for this run.
     assert "This run found a limited amount of upgrade risk" in html
 
 
+def test_report_html_repairs_broken_table_cell_tags():
+    html = render_report_html(
+        """# Changes AI Remediation Report
+
+## Executive Summary
+
+- Run ID: 1
+- Target: demo
+- Packages analysed: 1
+- Vulnerabilities found: 0
+- Remediation paths: 0
+
+## Impact Summary
+
+<table>
+  <tr><th>Upgrade</th><th>Delta</th></tr>
+  <tr><td>pytest 8.4.2 -&gt; 9.0.3/td><td>major</td></tr>
+</table>
+"""
+    )
+
+    assert "<td>pytest 8.4.2 -&gt; 9.0.3</td><td>major</td>" in html
+
+
 def test_cached_html_report_bundle_links_osv_vulnerability_ids():
     bundle = render_cached_html_report_bundle(
         {
@@ -566,6 +608,71 @@ def test_cached_html_report_bundle_embeds_graphviz_svg(monkeypatch):
 
     assert "<svg><text>graph</text></svg>" in bundle["index.html"]
     assert "Cached edges:" not in bundle["index.html"]
+
+
+def test_render_dot_report_uses_severity_states_not_upgrades(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_render_dot_graph(edges, *, graph_name="changes_ai", package_states=None, rankdir=None):
+        captured["edges"] = edges
+        captured["package_states"] = package_states
+        return "digraph G {}"
+
+    monkeypatch.setattr(reporting_module, "render_dot_graph", fake_render_dot_graph)
+
+    dot_graph = reporting_module.render_dot_report(
+        {
+            "run": {"id": 1, "locator": "demo"},
+            "graph": {"edges": [{"parent": "demo", "child": "requests"}]},
+            "vulnerabilities": [
+                {
+                    "package": "requests",
+                    "severity": "HIGH",
+                    "cve_id": "CVE-1",
+                    "installed_version": "2.31.0",
+                    "fixed_versions": ["2.32.0"],
+                }
+            ],
+            "remediation_paths": [
+                {
+                    "path_type": "balanced",
+                    "upgrades": [{"package": "requests"}],
+                    "cves_no_fix": [],
+                }
+            ],
+        }
+    )
+
+    assert dot_graph == "digraph G {}"
+    assert captured["edges"] == [{"parent": "demo", "child": "requests"}]
+    assert captured["package_states"] == {"requests": "high"}
+
+
+def test_render_sarif_report_uses_project_information_uri():
+    sarif = json.loads(
+        reporting_module.render_sarif_report(
+            {
+                "run": {},
+                "vulnerabilities": [],
+                "remediation_paths": [],
+                "currency": [],
+            }
+        )
+    )
+
+    assert (
+        sarif["runs"][0]["tool"]["driver"]["informationUri"]
+        == "https://github.com/pzanna/changes-ai"
+    )
+
+
+def test_pyproject_registers_changes_ai_package_dir():
+    pyproject = Path("pyproject.toml").read_text(encoding="utf-8")
+
+    assert 'changes-ai = "changes_ai.changes_ai:main"' in pyproject
+    assert 'packages = ["changes_ai"]' in pyproject
+    assert '[tool.setuptools.package-dir]' in pyproject
+    assert 'changes_ai = "src"' in pyproject
 
 
 def test_report_html_wraps_impact_analysis_list():
