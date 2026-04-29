@@ -1,0 +1,19 @@
+{
+  "name": "demo-app",
+  "lockfileVersion": 3,
+  "packages": {
+    "": {
+      "name": "demo-app",
+      "dependencies": {
+        "lodash": "^4.17.21",
+        "@scope/pkg": "^1.2.3"
+      }
+    },
+    "node_modules/lodash": {
+      "version": "4.17.21"
+    },
+    "node_modules/@scope/pkg": {
+      "version": "1.2.3"
+    }
+  }
+}

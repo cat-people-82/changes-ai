@@ -1,0 +1,7 @@
+"lodash@^4.17.21":
+  version "4.17.21"
+  resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.21.tgz"
+
+"@scope/pkg@^1.2.3":
+  version "1.2.3"
+  resolved "https://registry.yarnpkg.com/@scope/pkg/-/pkg-1.2.3.tgz"

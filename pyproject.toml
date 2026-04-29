@@ -17,6 +17,9 @@ dependencies = [
     "openai>=2.32.0",
     "python-dotenv>=1.0.0",
     "requests>=2.28.0",
+    "tree-sitter>=0.21",
+    "tree-sitter-javascript>=0.21",
+    "tree-sitter-typescript>=0.21",
     "tomli>=2.0.0; python_version < '3.11'",
     "weasyprint>=60",
     "markdown>=3.5",
@@ -31,7 +34,7 @@ dev = [
 changes-ai = "changes_ai.changes_ai:main"
 
 [tool.setuptools]
-packages = ["changes_ai"]
+packages = ["changes_ai", "changes_ai.ecosystem"]
 
 [tool.setuptools.package-dir]
 changes_ai = "src"

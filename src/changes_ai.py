@@ -37,7 +37,7 @@ try:
     from . import __version__
     from .cache import CacheMissError, SQLiteCache, default_cache_path
     from .currency import analyse_currency
-    from .graph import build_dependency_edges, render_dot_graph
+    from .graph import render_dot_graph
     from .impact import LLMClient, run_impact_analysis, usage_data_requires_opt_in
     from .remediation import run_remediation_plan
     from .reporting import (
@@ -48,7 +48,6 @@ try:
         render_pdf_report,
         render_sarif_report,
     )
-    from .usage import analyse_usage
     from .vulnerability import (
         SEVERITY_RANK,
         scan_vulnerabilities,
@@ -58,7 +57,7 @@ except ImportError:  # pragma: no cover - direct script execution path
     from src import __version__
     from src.cache import CacheMissError, SQLiteCache, default_cache_path
     from src.currency import analyse_currency
-    from src.graph import build_dependency_edges, render_dot_graph
+    from src.graph import render_dot_graph
     from src.impact import LLMClient, run_impact_analysis, usage_data_requires_opt_in
     from src.remediation import run_remediation_plan
     from src.reporting import (
@@ -69,7 +68,6 @@ except ImportError:  # pragma: no cover - direct script execution path
         render_pdf_report,
         render_sarif_report,
     )
-    from src.usage import analyse_usage
     from src.vulnerability import (
         SEVERITY_RANK,
         scan_vulnerabilities,
@@ -743,6 +741,46 @@ def build_version_mapping(
             )
 
     print("\r\033[K", end="", file=sys.stderr)
+    return mapping
+
+
+def _build_mapping_from_currency_records(
+    packages: dict,
+    currency_records: list,
+    installed_versions: dict | None = None,
+) -> list[dict]:
+    _norm = lambda n: n.lower().replace("_", "-")
+    installed_lookup = {_norm(k): v for k, v in (installed_versions or {}).items()}
+    by_name: dict[str, dict] = {}
+    for record in currency_records:
+        if hasattr(record, "__dict__"):
+            payload = dict(record.__dict__)
+        else:
+            payload = dict(record)
+        package = payload.get("package")
+        if package:
+            by_name[_norm(package)] = payload
+
+    mapping: list[dict] = []
+    for name, requirement in packages.items():
+        payload = by_name.get(_norm(name), {})
+        installed = installed_lookup.get(_norm(name)) or _concrete_version(requirement)
+        latest = payload.get("latest_version")
+        if installed and latest:
+            status = "up-to-date" if installed == latest else "outdated"
+        elif not requirement:
+            status = "unpinned"
+        else:
+            status = "unknown"
+        mapping.append(
+            {
+                "name": name,
+                "installed": installed or "(unknown)",
+                "requirement": requirement or "unpinned",
+                "latest": latest or "(unknown)",
+                "status": status,
+            }
+        )
     return mapping
 
 
@@ -1744,6 +1782,11 @@ def _run_report_command(argv: list[str]) -> None:
 
 
 def main() -> None:
+    try:
+        from .ecosystem import REGISTRY, detect_adapter
+    except ImportError:  # pragma: no cover - direct script execution path
+        from src.ecosystem import REGISTRY, detect_adapter
+
     # Load .env file (if present) before parsing arguments so that
     # LIBRARIES_IO_API_KEY and other variables are available via os.environ.
     load_dotenv()
@@ -1971,6 +2014,45 @@ examples:
             "(requires --impact-analysis). Uses OPENAI_API_KEY and OPENAI_MODEL."
         ),
     )
+    parser.add_argument(
+        "--apply",
+        action="store_true",
+        help=(
+            "After the remediation plan is produced, open an interactive editor "
+            "to review and apply a path. Requires --plan and --source. Skipped "
+            "when stdin is not a TTY (use --auto-apply for non-interactive use)."
+        ),
+    )
+    parser.add_argument(
+        "--auto-apply",
+        metavar="PATH_TYPE",
+        choices=["minimum_breakage", "balanced", "maximum_coverage"],
+        default=None,
+        help=(
+            "Non-interactively apply the named remediation path. Requires --plan "
+            "and --source. Combine with --max-breakage-score to refuse "
+            "application above a threshold."
+        ),
+    )
+    parser.add_argument(
+        "--max-breakage-score",
+        type=float,
+        metavar="SCORE",
+        default=None,
+        help=(
+            "When --auto-apply is used, refuse to apply any path whose breakage "
+            "score exceeds SCORE (0.0–1.0). Exit with code 3 if exceeded."
+        ),
+    )
+    parser.add_argument(
+        "--ecosystem",
+        choices=["python", "npm"],
+        default=None,
+        help=(
+            "Override automatic ecosystem detection. Useful for polyglot repos "
+            "where both Python and NPM manifests are present."
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -1991,6 +2073,12 @@ examples:
         sys.exit(1)
 
     # No arguments → print help and exit cleanly
+    if (args.apply or args.auto_apply) and not args.url and not args.source:
+        print(
+            "Warning: --apply / --auto-apply requires --source (cannot modify a remote --url checkout). Skipping.",
+            file=sys.stderr,
+        )
+        sys.exit(0)
     if not args.url and not args.source:
         parser.print_help()
         sys.exit(0)
@@ -2021,50 +2109,74 @@ examples:
     unused_packages: dict | None = None  # set only when a venv can be diffed
     venv_pkgs: dict | None = None  # installed versions from venv (for CVE scan)
     packages = None
+    manifest_info = None
     if args.source:
         source_path = Path(args.source)
         scan_locator = cloned_repo_locator or str(source_path.resolve())
-        # Try dependency files in the shared priority order.
-        for rel_path, file_type in DEPENDENCY_CANDIDATES:
-            dep_file = source_path / rel_path
-            if dep_file.is_file():
-                print(f"Analysing source: {args.source} (dependency file: {rel_path})")
-                dependency_file_path = rel_path
+        if args.ecosystem:
+            adapter = REGISTRY[args.ecosystem]
+            manifest_info = adapter.find_manifest(source_path)
+            if manifest_info is None:
+                print(
+                    f"Error: --ecosystem {args.ecosystem} specified but no matching manifest found in {source_path}.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+        else:
+            adapter = detect_adapter(source_path)
+            if adapter is None:
                 try:
-                    content = dep_file.read_text(encoding="utf-8")
-                except OSError as exc:
-                    print(f"Error reading {dep_file}: {exc}", file=sys.stderr)
-                    sys.exit(1)
-                packages = DependencyParser.parse(content, file_type)
-                if not packages:
-                    packages = None
-                    continue
-                # Detect packages installed in the venv but not declared as deps.
-                try:
-                    venv_path = find_venv(args.source)
-                    venv_pkgs = VenvParser.parse(venv_path)
-                    declared = {n.lower().replace("_", "-") for n in packages}
-                    # Build transitive closure using venv METADATA dep graph so
-                    # that indirect deps (e.g. certifi under requests) are not
-                    # labelled as unused.
-                    dep_graph = VenvParser.get_requires(venv_path)
-                    transitive: set = set()
-                    queue = list(declared)
-                    while queue:
-                        pkg = queue.pop()
-                        for dep in dep_graph.get(pkg, []):
-                            if dep not in transitive and dep not in declared:
-                                transitive.add(dep)
-                                queue.append(dep)
-                    unused_packages = {
-                        name: ver
-                        for name, ver in venv_pkgs.items()
-                        if name.lower().replace("_", "-") not in declared
-                        and name.lower().replace("_", "-") not in transitive
-                    }
+                    find_venv(source_path)
                 except FileNotFoundError:
-                    pass  # No venv present — skip unused detection
-                break
+                    print(
+                        f"Error: no supported ecosystem detected in {source_path}. Supported: {', '.join(REGISTRY)}.",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
+                adapter = REGISTRY["python"]
+            manifest_info = adapter.find_manifest(source_path)
+
+        if manifest_info is not None:
+            try:
+                rel_path = manifest_info.path.relative_to(source_path)
+            except ValueError:
+                rel_path = manifest_info.path
+            print(f"Analysing source: {args.source} (dependency file: {rel_path})")
+            dependency_file_path = str(rel_path)
+            try:
+                content = manifest_info.path.read_text(encoding="utf-8")
+            except OSError as exc:
+                print(f"Error reading {manifest_info.path}: {exc}", file=sys.stderr)
+                sys.exit(1)
+            packages = adapter.parse_manifest(content, manifest_info.file_type)
+            if packages:
+                venv_pkgs = adapter.discover_installed(source_path)
+                if venv_pkgs is not None:
+                    try:
+                        venv_path = find_venv(source_path)
+                        declared = {n.lower().replace("_", "-") for n in packages}
+                        # Build transitive closure using venv METADATA dep graph so
+                        # that indirect deps (e.g. certifi under requests) are not
+                        # labelled as unused.
+                        dep_graph = VenvParser.get_requires(venv_path)
+                        transitive: set = set()
+                        queue = list(declared)
+                        while queue:
+                            pkg = queue.pop()
+                            for dep in dep_graph.get(pkg, []):
+                                if dep not in transitive and dep not in declared:
+                                    transitive.add(dep)
+                                    queue.append(dep)
+                        unused_packages = {
+                            name: ver
+                            for name, ver in venv_pkgs.items()
+                            if name.lower().replace("_", "-") not in declared
+                            and name.lower().replace("_", "-") not in transitive
+                        }
+                    except FileNotFoundError:
+                        pass
+            else:
+                packages = None
 
         if packages is None:
             # No dependency file found — fall back to reading the venv directly.
@@ -2076,7 +2188,7 @@ examples:
             print(f"Analysing source: {args.source} (venv: {venv_path})")
             dependency_file_path = str(venv_path)
             try:
-                packages = VenvParser.parse(venv_path)
+                packages = adapter.discover_installed(source_path) if args.source else None
                 venv_pkgs = packages
             except FileNotFoundError as exc:
                 print(f"Error: {exc}", file=sys.stderr)
@@ -2124,16 +2236,29 @@ examples:
         ),
     )
 
-    print("Fetching version information from libraries.io…")
+    print("Fetching version information…")
     try:
-        mapping = build_version_mapping(packages, libraries_client, venv_pkgs)
+        if adapter.name == "python":
+            mapping = build_version_mapping(packages, libraries_client, venv_pkgs)
+            currency_records = analyse_currency(mapping, libraries_client)
+        else:
+            adapter_currency = adapter.fetch_currency(list(packages.keys()), cache)
+            mapping = _build_mapping_from_currency_records(
+                packages,
+                adapter_currency,
+                venv_pkgs,
+            )
+            currency_records = []
+            for record in adapter_currency:
+                payload = dict(record.__dict__)
+                payload["is_deprecated"] = payload.get("deprecated", False)
+                currency_records.append(payload)
     except CacheMissError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         cache.finish_run(run_id, status="failed", invalidation_reason=str(exc))
         cache.close()
         sys.exit(1)
     cache.store_packages(run_id, mapping)
-    currency_records = analyse_currency(mapping, libraries_client)
     cache.store_currency_records(run_id, currency_records)
 
     project_graph_name = (
@@ -2144,13 +2269,21 @@ examples:
         venv_pkgs,
         include_installed=args.cve_scan,
     )
-    graph_edges = build_dependency_edges(
+    graph_edges = adapter.build_graph(
         graph_packages,
-        project_node=project_graph_name or "project",
-        installed_versions=venv_pkgs,
-        libraries_client=libraries_client,
+        venv_pkgs,
+        libraries_client,
         include_transitive=args.transitive,
     )
+    graph_edges = [
+        {"parent": edge["parent"], "child": edge["child"]}
+        if isinstance(edge, dict)
+        else {"parent": edge.parent, "child": edge.child}
+        for edge in graph_edges
+    ]
+    for edge in graph_edges:
+        if edge["parent"] == "project":
+            edge["parent"] = project_graph_name or "project"
     cache.store_dependency_edges(run_id, graph_edges)
 
     # --- Version mapping output ------------------------------------------
@@ -2270,6 +2403,7 @@ examples:
                 cache=cache,
                 refresh=args.refresh,
                 offline=args.offline,
+                ecosystem=adapter.osv_ecosystem,
             )
         except CacheMissError as exc:
             print(f"Error: {exc}", file=sys.stderr)
@@ -2288,14 +2422,11 @@ examples:
 
     # --- Usage analysis --------------------------------------------------
     usage_report = None
+    remediation_paths: list = []
     if args.usage_analysis:
         if args.source:
             print("\nAnalysing source usage…")
-            try:
-                _ua_venv = find_venv(args.source)
-            except FileNotFoundError:
-                _ua_venv = None
-            usage_report = analyse_usage(args.source, packages, venv_path=_ua_venv)
+            usage_report = adapter.analyse_usage(source_path, packages)
             _print_usage_summary(usage_report)
             cache.store_usage_report(run_id, usage_report)
         else:
@@ -2448,6 +2579,111 @@ examples:
                         indent=2,
                     )
                 )
+
+    if (args.apply or args.auto_apply) and remediation_paths:
+        from .apply import UpgradeSelection, apply_remediation
+        from .remediation import _build_planning_context
+        from .remediation_editor import EditorState, run_editor
+
+        if cloned_repo_locator is not None or not args.source:
+            print(
+                "Warning: --apply / --auto-apply requires --source (cannot modify a remote --url checkout). Skipping.",
+                file=sys.stderr,
+            )
+        elif manifest_info is None:
+            print(
+                "Warning: no manifest found for apply step. Skipping.",
+                file=sys.stderr,
+            )
+        else:
+            environment_root = None
+            if adapter.name == "python":
+                try:
+                    environment_root = find_venv(args.source)
+                except FileNotFoundError:
+                    environment_root = None
+            else:
+                environment_root = source_path
+
+            if args.auto_apply:
+                target = next(
+                    (p for p in remediation_paths if p.path_type == args.auto_apply),
+                    None,
+                )
+                if target is None:
+                    print(
+                        f"Error: no remediation path of type '{args.auto_apply}' was generated.",
+                        file=sys.stderr,
+                    )
+                    cache.finish_run(run_id, status="failed")
+                    cache.close()
+                    sys.exit(1)
+
+                if (
+                    args.max_breakage_score is not None
+                    and target.breakage_score > args.max_breakage_score
+                ):
+                    print(
+                        f"Error: path '{args.auto_apply}' has breakage score "
+                        f"{target.breakage_score:.2f}, which exceeds "
+                        f"--max-breakage-score {args.max_breakage_score:.2f}. Not applying.",
+                        file=sys.stderr,
+                    )
+                    cache.finish_run(run_id, status="completed")
+                    cache.close()
+                    sys.exit(3)
+
+                upgrades = [
+                    UpgradeSelection(
+                        package=u.package,
+                        from_version=u.from_version,
+                        to_version=u.to_version,
+                        fixes_cves=u.fixes_cves,
+                    )
+                    for u in target.upgrades
+                ]
+                result = apply_remediation(
+                    adapter,
+                    manifest_info,
+                    upgrades,
+                    environment_root,
+                )
+                if not result.success:
+                    print(f"Error: apply failed: {result.error}", file=sys.stderr)
+                    cache.finish_run(run_id, status="failed")
+                    cache.close()
+                    sys.exit(1)
+                print(f"Auto-applied '{args.auto_apply}' path successfully.")
+
+            else:
+                if not sys.stdin.isatty():
+                    print(
+                        "Note: --apply ignored in non-interactive mode. Use --auto-apply for CI use.",
+                        file=sys.stderr,
+                    )
+                else:
+                    context = _build_planning_context(all_vulns, impact_reports)
+                    base = next(
+                        (p for p in remediation_paths if p.path_type == "balanced"),
+                        remediation_paths[0],
+                    )
+                    state = EditorState(
+                        all_paths=remediation_paths,
+                        all_impact_reports=impact_reports,
+                        all_vulns=all_vulns,
+                        selected_path_type=base.path_type,
+                        selection={
+                            u.package.lower().replace("_", "-"): UpgradeSelection(
+                                package=u.package,
+                                from_version=u.from_version,
+                                to_version=u.to_version,
+                                fixes_cves=u.fixes_cves,
+                            )
+                            for u in base.upgrades
+                        },
+                        context=context,
+                    )
+                    run_editor(state, adapter, manifest_info, environment_root)
 
     report = cache.get_run_report(run_id)
     if report is not None:

@@ -1,0 +1,16 @@
+{
+  "dependencies": {
+    "express": "^4.19.2",
+    "react": "^18.3.1"
+  },
+  "peerDependencies": {
+    "react": "^17.0.0"
+  },
+  "optionalDependencies": {
+    "typescript": "^5.4.5"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "react": "^16.0.0"
+  }
+}
