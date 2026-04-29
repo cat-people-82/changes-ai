@@ -73,6 +73,17 @@ code, pre, .mono {
 
 a { color: #0B2545; text-decoration: none; }
 
+.osv-link {
+  white-space: nowrap;
+}
+
+.external-link-icon {
+  margin-left: 0.22em;
+  width: 0.9em;
+  height: 0.9em;
+  vertical-align: text-top;
+}
+
 /* ---- Cover page -------------------------------------------- */
 
 html, body { margin: 0; padding: 0; }

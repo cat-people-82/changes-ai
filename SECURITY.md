@@ -7,8 +7,9 @@ issues should be handled carefully.
 
 | Version | Supported |
 |---|---|
+| 0.7.0 preview | Yes |
 | 0.6.3 preview | Yes |
-| 0.6.2 preview | Yes |
+| 0.6.2 preview | No |
 | Older preview versions | No |
 
 Until a stable 1.0 release exists, only the latest public preview is supported.

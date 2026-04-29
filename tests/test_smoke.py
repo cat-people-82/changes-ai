@@ -507,6 +507,42 @@ No cached vulnerabilities for this run.
     assert "This run found a limited amount of upgrade risk" in html
 
 
+def test_cached_html_report_bundle_links_osv_vulnerability_ids():
+    bundle = render_cached_html_report_bundle(
+        {
+            "run": {"id": 1, "locator": "demo"},
+            "packages": [{"name": "requests"}],
+            "currency": [],
+            "graph": {"edges": []},
+            "vulnerabilities": [
+                {
+                    "package": "requests",
+                    "severity": "HIGH",
+                    "cve_id": "GHSA-9wx4-h78v-vm56",
+                    "installed_version": "2.31.0",
+                    "fixed_versions": ["2.32.0"],
+                }
+            ],
+            "usage": {"records": [], "unresolved": []},
+            "impact_reports": [],
+            "remediation_paths": [],
+            "executive_summary": {},
+        }
+    )
+
+    assert (
+        'href="https://osv.dev/vulnerability/GHSA-9wx4-h78v-vm56"'
+        in bundle["index.html"]
+    )
+    assert 'target="_blank"' in bundle["index.html"]
+    assert 'rel="noopener noreferrer"' in bundle["index.html"]
+    assert (
+        '>GHSA-9wx4-h78v-vm56<img class="external-link-icon" '
+        'src="data:image/svg+xml;utf8,'
+    ) in bundle["index.html"]
+    assert 'alt="" aria-hidden="true"></a>' in bundle["index.html"]
+
+
 def test_cached_html_report_bundle_embeds_graphviz_svg(monkeypatch):
     monkeypatch.setattr(
         reporting_module,

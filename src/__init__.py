@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from importlib import import_module
 
-__version__ = "0.6.3"
+__version__ = "0.7.0"
 
 _EXPORTS = {
     "CacheMissError": ("src.cache", "CacheMissError"),

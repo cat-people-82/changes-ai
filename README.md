@@ -1,16 +1,19 @@
 # Changes AI: AI-powered impact analysis for software package updates
 
-[![Version](https://img.shields.io/badge/version-0.6.3-blue)](https://github.com/pzanna/changes-ai)
+[![Version](https://img.shields.io/badge/version-0.7.0-blue)](https://github.com/pzanna/changes-ai)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
 [![GitHub last commit](https://img.shields.io/github/last-commit/pzanna/changes-ai)](https://github.com/pzanna/changes-ai/commits/main)
 [![GitHub issues](https://img.shields.io/github/issues/pzanna/changes-ai)](https://github.com/pzanna/changes-ai/issues)
+[![Changes AI Dependency Risk Scan](https://github.com/pzanna/Sam_Trainer/actions/workflows/changes-ai.yml/badge.svg)](https://github.com/pzanna/Sam_Trainer/actions/workflows/changes-ai.yml)
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pzanna/changes-ai/main/docs/owl.jpg" alt="Changes AI Logo" />
+  <img src="https://raw.githubusercontent.com/pzanna/changes-ai/main/images/owl.jpg" alt="Changes AI Logo" />
 </p>
 
 ## News
+
+- **[02/05/2026]** Changes AI v0.70.0 released with support for NPM packages, automated remediation and GitHub Actions integration!
 
 - **[27/04/2026]** Bug fix release (v0.6.3) — Shiny new `GraphViz` dependency graphs added to html and pdf reports.
 
@@ -116,6 +119,19 @@ For graphic dependency diagrams and PDF reports on MacOS:
 ```bash
 brew install graphviz
 brew install pango
+```
+
+Or fo Linux:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+  graphviz \
+  libpango-1.0-0 \
+  libpangoft2-1.0-0 \
+  libharfbuzz0b \
+  libharfbuzz-subset0 \
+  fonts-dejavu-core
 ```
 
 ## Usage
@@ -266,7 +282,7 @@ changes-ai --source /path/to/project \
 ## Report Graph Rendering
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pzanna/changes-ai/main/docs/dependency_graph.png" alt="Dependency Graph" />
+  <img src="https://raw.githubusercontent.com/pzanna/changes-ai/main/images/dependency_graph.png" alt="Dependency Graph" />
 </p>
 
 - HTML and PDF reports try to prerender the `Dependency Graph` section as inline SVG using local Graphviz (`dot`).
@@ -470,7 +486,7 @@ commercial endpoints require explicit opt-in. For stricter handling, either:
 
 ## Roadmap
 
-The current release (**v0.6.3**) covers package discovery, version mapping,
+The current release (**v0.7.0**) covers package discovery, version mapping,
 dependency charts, CVE scanning, AST-based usage analysis, LLM-backed
 impact analysis, the LLM remediation planner, SQLite-backed libraries.io, OSV,
 PyPI, and LLM response caching, offline/refresh controls, stage-focused `scan`,

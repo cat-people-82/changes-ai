@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import html
 import json
+from pathlib import Path
+from urllib.parse import quote
 
 from .graph import (
     build_package_states,
@@ -25,6 +28,19 @@ SARIF_SECURITY_SEVERITY = {
     "MEDIUM": "4.0",
     "LOW": "0.1",
 }
+OSV_VULNERABILITY_URL = "https://osv.dev/vulnerability/{vuln_id}"
+EXTERNAL_LINK_ICON_PATH = (
+    Path(__file__).resolve().parent.parent / "images" / "external-link.svg"
+)
+
+
+def _load_external_link_icon_data_uri() -> str:
+    """Return the bundled external-link SVG as a data URI."""
+    svg_markup = EXTERNAL_LINK_ICON_PATH.read_text(encoding="utf-8").strip()
+    return f"data:image/svg+xml;utf8,{quote(svg_markup)}"
+
+
+EXTERNAL_LINK_ICON_DATA_URI = _load_external_link_icon_data_uri()
 
 
 def render_json_report(report: dict) -> str:
@@ -36,6 +52,18 @@ def _group_by(items: list[dict], key: str) -> dict[str, list[dict]]:
     for item in items:
         grouped.setdefault(str(item.get(key) or "UNKNOWN"), []).append(item)
     return grouped
+
+
+def _render_osv_link(vuln_id: str) -> str:
+    """Render a report-safe HTML link to the OSV vulnerability page."""
+    safe_vuln_id = html.escape(vuln_id, quote=True)
+    return (
+        f'<a class="osv-link" href="{OSV_VULNERABILITY_URL.format(vuln_id=safe_vuln_id)}" '
+        f'target="_blank" rel="noopener noreferrer" '
+        f'title="Open {safe_vuln_id} on osv.dev in a new tab">'
+        f'{safe_vuln_id}<img class="external-link-icon" src="{EXTERNAL_LINK_ICON_DATA_URI}" '
+        f'alt="" aria-hidden="true"></a>'
+    )
 
 
 def _report_dependency_graph_states(report: dict) -> dict[str, str]:
@@ -291,9 +319,10 @@ def render_markdown_report(
             ),
         ):
             fixed = ", ".join(vuln.get("fixed_versions") or []) or "none known"
+            vuln_id = str(vuln.get("cve_id") or "UNKNOWN")
             lines.append(
                 f"| {vuln.get('severity')} | {vuln.get('package')} | "
-                f"{vuln.get('installed_version')} | {vuln.get('cve_id')} | {fixed} |"
+                f"{vuln.get('installed_version')} | {_render_osv_link(vuln_id)} | {fixed} |"
             )
     else:
         lines.append("No cached vulnerabilities for this run.")

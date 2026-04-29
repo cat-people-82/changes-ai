@@ -5,7 +5,19 @@ All notable changes to Changes AI will be documented in this file.
 This project follows a pragmatic preview-release format. Versions are currently
 published as preview milestones until the public API and CLI behavior stabilize.
 
-## [0.6.3] - 2026-04-27
+## [0.7.0] - 01-05-2026
+
+### Added
+
+- Add links to the individual CVEs in the reports.
+- Added automated remediation support via the `remediate` subcommand, which generates and applies upgrade recommendations based on LLM analysis.
+- Added a GitHub Actions workflow template for running Changes AI scans on pull requests and commits, with example configuration and usage instructions.
+
+### Fixed
+
+- Updated installation notes for pdf/graph packages to include Linux in the README
+
+## [0.6.3] - 27-04-2026
 
 ### Added
 
@@ -18,7 +30,7 @@ published as preview milestones until the public API and CLI behavior stabilize.
 
 ---
 
-## [0.6.2] - 2026-04-26
+## [0.6.2] - 26-04-2026
 
 ### Added
 
