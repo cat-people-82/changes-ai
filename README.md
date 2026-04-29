@@ -409,16 +409,20 @@ directory. For polyglot repositories with both `pyproject.toml` and
 
 ## Interactive (recommended for local use)
 
+``` bash
     changes-ai --source . --all --apply
+```
 
 After the plan is printed, an interactive editor opens. Customise the
 selection, preview the diff, then apply.
 
 ## Non-interactive (for CI)
 
+``` bash
     changes-ai --source . --all \
         --auto-apply balanced \
         --max-breakage-score 0.3
+```
 
 Applies the balanced path without prompting. Refuses to apply if the
 balanced path's breakage score exceeds 0.3 (exit code 3).

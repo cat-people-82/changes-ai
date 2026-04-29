@@ -7,8 +7,6 @@ published as preview milestones until the public API and CLI behavior stabilize.
 
 ## [0.7.0] - 01-05-2026
 
-## [0.7.0] - 2026-04-29
-
 ### Added — Ecosystem support
 
 - **NPM ecosystem support.** Discovers and parses `package.json`, `package-lock.json` (v1/v2/v3), `yarn.lock` (v1 and berry), and `pnpm-lock.yaml`. Routes OSV queries via the `npm` ecosystem and uses the npm registry directly for currency checks (no API key required).
@@ -41,6 +39,8 @@ published as preview milestones until the public API and CLI behavior stabilize.
   <https://github.com/pzanna/changes-ai>.
 - pyproject.toml packaging layout now uses [tool.setuptools.package-dir] to
   register the package as changes_ai rather than src.
+
+---
 
 ## [0.6.3] - 27-04-2026
 
