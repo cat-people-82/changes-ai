@@ -393,6 +393,53 @@ urllib3    1.26.5 → 1.26.11      patch   ○ LOW (0.02)       ✓ HIGH
 
 **Sample Report** files are available in the `sample-reports/` directory.
 
+# Supported ecosystems
+
+| Ecosystem | Manifests | Lockfiles |
+|-----------|-----------|-----------|
+| Python | `requirements.txt`, `pyproject.toml`, `requirements/*.txt`, `environment.yml` | `uv.lock`, `poetry.lock` |
+| NPM | `package.json` | `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml` |
+
+Ecosystem is detected automatically from the contents of the source
+directory. For polyglot repositories with both `pyproject.toml` and
+`package.json` at the same depth, Python wins by default. Use
+`--ecosystem npm` to override.
+
+# Applying remediations
+
+## Interactive (recommended for local use)
+
+    changes-ai --source . --all --apply
+
+After the plan is printed, an interactive editor opens. Customise the
+selection, preview the diff, then apply.
+
+## Non-interactive (for CI)
+
+    changes-ai --source . --all \
+        --auto-apply balanced \
+        --max-breakage-score 0.3
+
+Applies the balanced path without prompting. Refuses to apply if the
+balanced path's breakage score exceeds 0.3 (exit code 3).
+
+## Lockfile regeneration
+
+After writing the manifest, Changes AI regenerates the project's
+lockfile by invoking the appropriate tool. The relevant tool must be
+on `PATH`:
+
+| Lockfile | Tool |
+|----------|------|
+| `uv.lock` | `uv lock` |
+| `poetry.lock` | `poetry lock` |
+| `package-lock.json` | `npm install --package-lock-only` |
+| `yarn.lock` | `yarn install` |
+| `pnpm-lock.yaml` | `pnpm install` |
+
+If the tool is missing, the apply step fails clearly and the manifest
+is rolled back to its previous state.
+
 ## Configuration via `.env` file
 
 Create a `.env` file in the project directory to store API keys so you never
@@ -494,49 +541,3 @@ PyPI, and LLM response caching, offline/refresh controls, stage-focused `scan`,
 run artifacts, Markdown report regeneration, SARIF output, DOT graph export,
 currency and deprecation signals, cited changelog or release-note evidence in
 impact reports, and local cloning for GitHub repository URLs.
-# Supported ecosystems
-
-| Ecosystem | Manifests | Lockfiles |
-|-----------|-----------|-----------|
-| Python | `requirements.txt`, `pyproject.toml`, `requirements/*.txt`, `environment.yml` | `uv.lock`, `poetry.lock` |
-| NPM | `package.json` | `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml` |
-
-Ecosystem is detected automatically from the contents of the source
-directory. For polyglot repositories with both `pyproject.toml` and
-`package.json` at the same depth, Python wins by default. Use
-`--ecosystem npm` to override.
-
-# Applying remediations
-
-## Interactive (recommended for local use)
-
-    changes-ai --source . --all --apply
-
-After the plan is printed, an interactive editor opens. Customise the
-selection, preview the diff, then apply.
-
-## Non-interactive (for CI)
-
-    changes-ai --source . --all \
-        --auto-apply balanced \
-        --max-breakage-score 0.3
-
-Applies the balanced path without prompting. Refuses to apply if the
-balanced path's breakage score exceeds 0.3 (exit code 3).
-
-## Lockfile regeneration
-
-After writing the manifest, Changes AI regenerates the project's
-lockfile by invoking the appropriate tool. The relevant tool must be
-on `PATH`:
-
-| Lockfile | Tool |
-|----------|------|
-| `uv.lock` | `uv lock` |
-| `poetry.lock` | `poetry lock` |
-| `package-lock.json` | `npm install --package-lock-only` |
-| `yarn.lock` | `yarn install` |
-| `pnpm-lock.yaml` | `pnpm install` |
-
-If the tool is missing, the apply step fails clearly and the manifest
-is rolled back to its previous state.

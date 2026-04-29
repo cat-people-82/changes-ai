@@ -7,11 +7,25 @@ published as preview milestones until the public API and CLI behavior stabilize.
 
 ## [0.7.0] - 01-05-2026
 
-### Added
+## [0.7.0] - 2026-04-29
 
-- Add links to the individual CVEs in the reports.
-- Added automated remediation support via the `remediate` subcommand, which generates and applies upgrade recommendations based on LLM analysis.
-- Added a GitHub Actions workflow template for running Changes AI scans on pull requests and commits, with example configuration and usage instructions.
+### Added — Ecosystem support
+
+- **NPM ecosystem support.** Discovers and parses `package.json`, `package-lock.json` (v1/v2/v3), `yarn.lock` (v1 and berry), and `pnpm-lock.yaml`. Routes OSV queries via the `npm` ecosystem and uses the npm registry directly for currency checks (no API key required).
+- **JS/TS usage analysis.** Tree-sitter-based AST walker collects symbol-level imports across `.js`, `.jsx`, `.ts`, `.tsx`, `.mjs`, `.cjs` files. Static imports, CommonJS requires, and dynamic imports with literal arguments are resolved; dynamic, re-export, and member-access cases are flagged as unresolved.
+- **`EcosystemAdapter` protocol** in `src/ecosystem/`. Every ecosystem-specific operation — manifest discovery, parsing, currency, dependency graphs, usage analysis, manifest writes, lockfile regeneration, install — goes through the protocol. `PythonAdapter` and `NpmAdapter` are the first two implementations.
+
+### Added — Remediation apply
+
+- **Interactive remediation editor (`--apply`).** After the plan is produced, opens a loop where the user can customise the upgrade selection, check constraint validity in real time, preview the manifest diff, and apply the chosen path in one step.
+- **Non-interactive apply (`--auto-apply PATH_TYPE`).** Applies a named remediation path without prompting. Designed for CI. Combine with `--max-breakage-score` to refuse application above a breakage threshold (exits with code 3).
+- **Lockfile regeneration.** Both ecosystems regenerate their lockfiles after manifest writes (`uv lock` / `poetry lock` / `npm install --package-lock-only` / `yarn install --mode=update-lockfile` / `pnpm install --lockfile-only`). If the relevant tool is missing, the apply step fails clearly and rolls back.
+- **`--ecosystem` flag** to override automatic ecosystem detection in polyglot repos.
+
+### Changed
+
+- OSV queries now route per-ecosystem (was hardcoded `PyPI`). Existing Python scans behave identically; NPM scans use `ecosystem: "npm"`.
+- Python manifest writes for `pyproject.toml` use regex-based in-place rewriting to preserve formatting and comments.
 
 ### Fixed
 
@@ -114,23 +128,3 @@ published as preview milestones until the public API and CLI behavior stabilize.
 - LLM-backed analysis quality depends on available release evidence, usage
   analysis completeness, and the configured model.
 - Public preview behavior may change before a stable 1.0 release.
-## [0.7.0] - 2026-04-29
-
-### Added — Ecosystem support
-- **NPM ecosystem support.** Discovers and parses `package.json`, `package-lock.json` (v1/v2/v3), `yarn.lock` (v1 and berry), and `pnpm-lock.yaml`. Routes OSV queries via the `npm` ecosystem and uses the npm registry directly for currency checks (no API key required).
-- **JS/TS usage analysis.** Tree-sitter-based AST walker collects symbol-level imports across `.js`, `.jsx`, `.ts`, `.tsx`, `.mjs`, `.cjs` files. Static imports, CommonJS requires, and dynamic imports with literal arguments are resolved; dynamic, re-export, and member-access cases are flagged as unresolved.
-- **`EcosystemAdapter` protocol** in `src/ecosystem/`. Every ecosystem-specific operation — manifest discovery, parsing, currency, dependency graphs, usage analysis, manifest writes, lockfile regeneration, install — goes through the protocol. `PythonAdapter` and `NpmAdapter` are the first two implementations.
-
-### Added — Remediation apply
-- **Interactive remediation editor (`--apply`).** After the plan is produced, opens a loop where the user can customise the upgrade selection, check constraint validity in real time, preview the manifest diff, and apply the chosen path in one step.
-- **Non-interactive apply (`--auto-apply PATH_TYPE`).** Applies a named remediation path without prompting. Designed for CI. Combine with `--max-breakage-score` to refuse application above a breakage threshold (exits with code 3).
-- **Lockfile regeneration.** Both ecosystems regenerate their lockfiles after manifest writes (`uv lock` / `poetry lock` / `npm install --package-lock-only` / `yarn install --mode=update-lockfile` / `pnpm install --lockfile-only`). If the relevant tool is missing, the apply step fails clearly and rolls back.
-- **`--ecosystem` flag** to override automatic ecosystem detection in polyglot repos.
-
-### Changed
-- OSV queries now route per-ecosystem (was hardcoded `PyPI`). Existing Python scans behave identically; NPM scans use `ecosystem: "npm"`.
-- Python manifest writes for `pyproject.toml` use regex-based in-place rewriting to preserve formatting and comments.
-
-### Notes
-- The editor is skipped in non-interactive environments. Use `--auto-apply` for pipeline use.
-- v0.7 includes JS/TS usage analysis but does *not* include reachability analysis through bundlers (webpack, esbuild, vite). Bundler-aware reachability is on the v0.9 roadmap.
