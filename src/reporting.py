@@ -36,11 +36,28 @@ EXTERNAL_LINK_ICON_PATH = (
 
 def _load_external_link_icon_data_uri() -> str:
     """Return the bundled external-link SVG as a data URI."""
-    svg_markup = EXTERNAL_LINK_ICON_PATH.read_text(encoding="utf-8").strip()
+    try:
+        svg_markup = EXTERNAL_LINK_ICON_PATH.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
     return f"data:image/svg+xml;utf8,{quote(svg_markup)}"
 
 
-EXTERNAL_LINK_ICON_DATA_URI = _load_external_link_icon_data_uri()
+_EXTERNAL_LINK_ICON_DATA_URI_CACHE: str | None = None
+
+
+def _get_external_link_icon_data_uri() -> str:
+    global _EXTERNAL_LINK_ICON_DATA_URI_CACHE
+    if _EXTERNAL_LINK_ICON_DATA_URI_CACHE is None:
+        _EXTERNAL_LINK_ICON_DATA_URI_CACHE = _load_external_link_icon_data_uri()
+    return _EXTERNAL_LINK_ICON_DATA_URI_CACHE
+
+
+# Keep the module-level name for backward compatibility but populate lazily on first use.
+def __getattr__(name: str):
+    if name == "EXTERNAL_LINK_ICON_DATA_URI":
+        return _get_external_link_icon_data_uri()
+    raise AttributeError(name)
 
 
 def render_json_report(report: dict) -> str:
@@ -61,7 +78,7 @@ def _render_osv_link(vuln_id: str) -> str:
         f'<a class="osv-link" href="{OSV_VULNERABILITY_URL.format(vuln_id=safe_vuln_id)}" '
         f'target="_blank" rel="noopener noreferrer" '
         f'title="Open {safe_vuln_id} on osv.dev in a new tab">'
-        f'{safe_vuln_id}<img class="external-link-icon" src="{EXTERNAL_LINK_ICON_DATA_URI}" '
+        f'{safe_vuln_id}<img class="external-link-icon" src="{_get_external_link_icon_data_uri()}" '
         f'alt="" aria-hidden="true"></a>'
     )
 

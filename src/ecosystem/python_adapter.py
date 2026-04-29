@@ -16,7 +16,7 @@ from ..changes_ai import (
 from ..currency import analyse_currency as _analyse_currency
 from ..graph import build_dependency_edges as _python_build_edges
 from ..usage import analyse_usage as _python_analyse_usage
-from .base import ApplyOutcome, CurrencyRecord, ManifestInfo
+from .base import ApplyOutcome, CurrencyRecord, ManifestInfo, atomic_write, run_lock_tool
 
 PYTHON_LOCKFILE_CANDIDATES = [
     ("uv.lock", "uv_lockfile"),
@@ -33,12 +33,12 @@ class PythonAdapter:
 
     def find_manifest(self, source: Path) -> ManifestInfo | None:
         source = Path(source)
+        lockfile_path, lockfile_type = self._detect_lockfile(source)
         first_match: ManifestInfo | None = None
         for rel_path, file_type in DEPENDENCY_CANDIDATES:
             candidate = source / rel_path
             if not candidate.is_file():
                 continue
-            lockfile_path, lockfile_type = self._detect_lockfile(source)
             manifest = ManifestInfo(
                 path=candidate,
                 file_type=file_type,
@@ -135,7 +135,7 @@ class PythonAdapter:
             rewritten = self._write_pyproject_toml(original_content, upgrades)
         else:
             raise ValueError(f"unsupported manifest type for apply: {manifest.file_type}")
-        self._atomic_write(manifest.path, rewritten)
+        atomic_write(manifest.path, rewritten)
         return manifest.path
 
     def regenerate_lockfile(self, manifest: ManifestInfo) -> ApplyOutcome:
@@ -146,9 +146,19 @@ class PythonAdapter:
                 files_modified=[],
             )
         if manifest.lockfile_type == "uv_lockfile":
-            return self._run_lock_tool("uv", ["lock"], manifest)
+            return run_lock_tool(
+                "uv",
+                ["lock"],
+                manifest,
+                missing_tool_hint="uv lock",
+            )
         if manifest.lockfile_type == "poetry_lockfile":
-            return self._run_lock_tool("poetry", ["lock", "--no-update"], manifest)
+            return run_lock_tool(
+                "poetry",
+                ["lock", "--no-update"],
+                manifest,
+                missing_tool_hint="poetry lock",
+            )
         return ApplyOutcome(
             success=False,
             output=f"unknown lockfile type: {manifest.lockfile_type}",
@@ -386,50 +396,6 @@ class PythonAdapter:
         if marker_index == -1:
             return requirement_part, ""
         return requirement_part[:marker_index], requirement_part[marker_index:]
-
-    @staticmethod
-    def _atomic_write(path: Path, content: str) -> None:
-        tmp_path = path.with_name(f"{path.name}.tmp")
-        tmp_path.write_text(content, encoding="utf-8")
-        os.replace(tmp_path, path)
-
-    def _run_lock_tool(
-        self,
-        tool: str,
-        args: list[str],
-        manifest: ManifestInfo,
-    ) -> ApplyOutcome:
-        if shutil.which(tool) is None:
-            return ApplyOutcome(
-                success=False,
-                output=(
-                    f"{tool} not found on PATH. Install {tool} or run "
-                    f"'{tool} {' '.join(args)}' manually before deploying."
-                ),
-                files_modified=[],
-            )
-        result = subprocess.run(
-            [tool, *args],
-            cwd=manifest.path.parent,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            return ApplyOutcome(
-                success=False,
-                output=(
-                    result.stderr
-                    or result.stdout
-                    or f"{tool} exited {result.returncode}"
-                ).strip(),
-                files_modified=[],
-            )
-        return ApplyOutcome(
-            success=True,
-            output=result.stdout,
-            files_modified=[manifest.lockfile_path] if manifest.lockfile_path else [],
-        )
 
     @staticmethod
     def _resolve_pip(environment_root: Path | None) -> list[str] | None:

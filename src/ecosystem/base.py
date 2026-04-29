@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import shutil
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
@@ -127,3 +130,55 @@ class EcosystemAdapter(Protocol):
         upgrades: list,
         environment_root: Path | None,
     ) -> tuple[bool, str]: ...
+
+
+def atomic_write(path: Path, content: str) -> None:
+    """Write content atomically via a .tmp file then os.replace."""
+    tmp_path = path.with_name(f"{path.name}.tmp")
+    tmp_path.write_text(content, encoding="utf-8")
+    os.replace(tmp_path, path)
+
+
+def run_lock_tool(
+    tool: str,
+    args: list[str],
+    manifest: ManifestInfo,
+    *,
+    missing_tool_hint: str | None = None,
+) -> ApplyOutcome:
+    """Run a lockfile-regeneration tool and return an ApplyOutcome.
+
+    If the tool is not on PATH, returns a clear failure rather than raising.
+    *missing_tool_hint* customises the "run X manually" suggestion in the
+    error message; defaults to ``'<tool> install'``.
+    """
+    if shutil.which(tool) is None:
+        hint = missing_tool_hint or f"{tool} install"
+        return ApplyOutcome(
+            success=False,
+            output=(
+                f"{tool} not found on PATH. Install {tool} or run "
+                f"'{hint}' manually before deploying."
+            ),
+            files_modified=[],
+        )
+    result = subprocess.run(
+        [tool, *args],
+        cwd=manifest.path.parent,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return ApplyOutcome(
+            success=False,
+            output=(
+                result.stderr or result.stdout or f"{tool} exited {result.returncode}"
+            ).strip(),
+            files_modified=[],
+        )
+    return ApplyOutcome(
+        success=True,
+        output=(result.stdout or "") + (result.stderr or ""),
+        files_modified=[manifest.lockfile_path] if manifest.lockfile_path else [],
+    )

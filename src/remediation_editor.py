@@ -10,7 +10,7 @@ from pathlib import Path
 
 from src.apply import ApplyResult, UpgradeSelection, apply_remediation, restore, snapshot
 from src.ecosystem.base import EcosystemAdapter, ManifestInfo
-from src.remediation import _build_planning_context, _compute_exposure_score, _confidence_min
+from src.remediation import _build_planning_context, _compute_exposure_score, _confidence_min, _delta_rank
 
 _RESET = "\033[0m"
 _GREEN = "\033[0;32m"
@@ -71,10 +71,6 @@ def _delta_kind(from_version: str, to_version: str) -> str:
     return "patch"
 
 
-def _delta_rank(delta: str) -> int:
-    return {"patch": 0, "minor": 1, "major": 2, "unknown": 3}.get(delta, 3)
-
-
 def _selection_list(state: EditorState) -> list[UpgradeSelection]:
     return list(state.selection.values())
 
@@ -101,8 +97,14 @@ def _impact_lookup(state: EditorState) -> dict[tuple[str, str, str], object]:
     }
 
 
-def _report_for_selection(state: EditorState, upgrade: UpgradeSelection):
-    return _impact_lookup(state).get(
+def _report_for_selection(
+    state: EditorState,
+    upgrade: UpgradeSelection,
+    lookup: dict | None = None,
+):
+    if lookup is None:
+        lookup = _impact_lookup(state)
+    return lookup.get(
         (_norm(upgrade.package), upgrade.from_version, upgrade.to_version)
     )
 
@@ -126,8 +128,9 @@ def recalculate_scores(state: EditorState) -> tuple[float, float, str]:
 
     breakage_scores: list[float] = []
     confidence_labels: list[str] = []
+    lookup = _impact_lookup(state)
     for upgrade in state.selection.values():
-        report = _report_for_selection(state, upgrade)
+        report = _report_for_selection(state, upgrade, lookup)
         if report is None:
             continue
         breakage_scores.append(float(report.breakage_score))
@@ -185,9 +188,14 @@ def _version_satisfies(candidate: str, requirement: str) -> bool:
             if upper is not None and candidate_triplet >= upper:
                 return False
         elif part.startswith("~="):
+            # Compatible release: ~=X.Y.Z means >=X.Y.Z, ==X.Y.*
             lower = _parse_version_triplet(part[2:])
-            if lower is not None and candidate_triplet < lower:
-                return False
+            if lower is not None:
+                if candidate_triplet < lower:
+                    return False
+                upper = (lower[0], lower[1] + 1, 0)
+                if candidate_triplet >= upper:
+                    return False
         elif part.startswith("^"):
             lower = _parse_version_triplet(part[1:])
             if lower is not None:
@@ -277,10 +285,12 @@ def available_upgrades(state: EditorState) -> list[UpgradeSelection]:
                 )
             )
 
+    lookup = _impact_lookup(state)
+
     def sort_key(upgrade: UpgradeSelection):
         severities = [severity_map.get(cve, "UNKNOWN") for cve in upgrade.fixes_cves]
         weight = max({"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1, "UNKNOWN": 0}.get(sev, 0) for sev in severities) if severities else 0
-        report = _report_for_selection(state, upgrade)
+        report = _report_for_selection(state, upgrade, lookup)
         breakage = float(report.breakage_score) if report is not None else 1.0
         return (-weight, _delta_rank(_delta_kind(upgrade.from_version, upgrade.to_version)), breakage, _norm(upgrade.package))
 
@@ -295,8 +305,9 @@ def _colorize(text: str, color: str, *, use_color: bool) -> str:
 
 def _table_rows(state: EditorState, upgrades: list[UpgradeSelection], prefix: str) -> list[list[str]]:
     rows: list[list[str]] = []
+    lookup = _impact_lookup(state)
     for idx, upgrade in enumerate(upgrades, start=1):
-        report = _report_for_selection(state, upgrade)
+        report = _report_for_selection(state, upgrade, lookup)
         breakage = f"{float(report.breakage_score):.2f}" if report is not None else "?"
         rows.append(
             [

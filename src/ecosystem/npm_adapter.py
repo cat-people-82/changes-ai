@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -15,7 +14,7 @@ import requests
 
 from ..changes_ai import LibrariesIOClient
 from ..usage import _normalise as _python_normalise
-from .base import ApplyOutcome, CurrencyRecord, GraphEdge, ManifestInfo
+from .base import ApplyOutcome, CurrencyRecord, GraphEdge, ManifestInfo, atomic_write, run_lock_tool
 
 try:
     import yaml
@@ -458,36 +457,40 @@ class NpmAdapter:
                 upgrade.package,
                 upgrade.to_version,
             )
-        self._atomic_write(manifest.path, content)
+        atomic_write(manifest.path, content)
         return manifest.path
 
     def regenerate_lockfile(self, manifest) -> ApplyOutcome:
         if not manifest.has_lockfile or manifest.lockfile_type is None:
             return ApplyOutcome(success=True, output="no lockfile present", files_modified=[])
         if manifest.lockfile_type == "npm_lockfile":
-            return self._run_tool(
+            return run_lock_tool(
                 "npm",
                 ["install", "--package-lock-only"],
                 manifest,
+                missing_tool_hint="npm install",
             )
         if manifest.lockfile_type == "yarn_lockfile":
             lock_content = manifest.lockfile_path.read_text(encoding="utf-8", errors="replace")
             if lock_content.lstrip().startswith("__metadata:"):
-                return self._run_tool(
+                return run_lock_tool(
                     "yarn",
                     ["install", "--mode=update-lockfile"],
                     manifest,
+                    missing_tool_hint="yarn install",
                 )
-            return self._run_tool(
+            return run_lock_tool(
                 "yarn",
                 ["install", "--frozen-lockfile=false"],
                 manifest,
+                missing_tool_hint="yarn install",
             )
         if manifest.lockfile_type == "pnpm_lockfile":
-            return self._run_tool(
+            return run_lock_tool(
                 "pnpm",
                 ["install", "--lockfile-only"],
                 manifest,
+                missing_tool_hint="pnpm install",
             )
         return ApplyOutcome(
             success=False,
@@ -778,41 +781,6 @@ class NpmAdapter:
             if brace_depth <= 0:
                 section = None
         return "".join(rewritten)
-
-    @staticmethod
-    def _atomic_write(path: Path, content: str) -> None:
-        tmp_path = path.with_name(f"{path.name}.tmp")
-        tmp_path.write_text(content, encoding="utf-8")
-        os.replace(tmp_path, path)
-
-    def _run_tool(self, tool: str, args: list[str], manifest: ManifestInfo) -> ApplyOutcome:
-        if shutil.which(tool) is None:
-            return ApplyOutcome(
-                success=False,
-                output=(
-                    f"{tool} not found on PATH. Install {tool} or run "
-                    f"'{tool} install' manually before deploying."
-                ),
-                files_modified=[],
-            )
-        result = subprocess.run(
-            [tool, *args],
-            cwd=manifest.path.parent,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            return ApplyOutcome(
-                success=False,
-                output=(result.stderr or result.stdout or f"{tool} exited {result.returncode}").strip(),
-                files_modified=[],
-            )
-        return ApplyOutcome(
-            success=True,
-            output=(result.stdout or "") + (result.stderr or ""),
-            files_modified=[manifest.lockfile_path] if manifest.lockfile_path else [],
-        )
 
     @staticmethod
     def _install_command(manifest: ManifestInfo) -> tuple[str, list[str]]:
