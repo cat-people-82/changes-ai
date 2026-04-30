@@ -38,6 +38,7 @@ packages = ["changes_ai", "changes_ai.ecosystem"]
 
 [tool.setuptools.package-dir]
 changes_ai = "src"
+"changes_ai.ecosystem" = "src/ecosystem"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

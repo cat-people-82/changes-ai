@@ -150,8 +150,8 @@ examples:
         "--transitive",
         action="store_true",
         help=(
-            "Include transitive dependencies in the Mermaid chart "
-            "(requires additional libraries.io API calls)"
+            "Include transitive (sub-)dependencies in generated dependency charts; "
+            "HTML/PDF report graphs use the same cached depth"
         ),
     )
     parser.add_argument(
@@ -395,12 +395,10 @@ def _run_apply_step(
     """Handle --apply / --auto-apply after remediation planning."""
     try:
         from .apply import UpgradeSelection, apply_remediation
-        from .remediation import _build_planning_context
-        from .remediation_editor import EditorState, run_editor
+        from .remediation_editor import build_editor_state, run_editor
     except ImportError:  # pragma: no cover
         from src.apply import UpgradeSelection, apply_remediation
-        from src.remediation import _build_planning_context
-        from src.remediation_editor import EditorState, run_editor
+        from src.remediation_editor import build_editor_state, run_editor
 
     if cloned_repo_locator is not None or not args.source:
         print(
@@ -416,6 +414,10 @@ def _run_apply_step(
         return
 
     environment_root = None
+    if adapter.name == "npm":
+        adapter._apply_cache = cache
+        adapter._apply_offline = getattr(args, "offline", False)
+        adapter._apply_refresh = getattr(args, "refresh", False)
     if adapter.name == "python":
         try:
             environment_root = find_venv(args.source)
@@ -475,25 +477,5 @@ def _run_apply_step(
                 file=sys.stderr,
             )
         else:
-            context = _build_planning_context(all_vulns, impact_reports)
-            base = next(
-                (p for p in remediation_paths if p.path_type == "balanced"),
-                remediation_paths[0],
-            )
-            state = EditorState(
-                all_paths=remediation_paths,
-                all_impact_reports=impact_reports,
-                all_vulns=all_vulns,
-                selected_path_type=base.path_type,
-                selection={
-                    u.package.lower().replace("_", "-"): UpgradeSelection(
-                        package=u.package,
-                        from_version=u.from_version,
-                        to_version=u.to_version,
-                        fixes_cves=u.fixes_cves,
-                    )
-                    for u in base.upgrades
-                },
-                context=context,
-            )
+            state = build_editor_state(remediation_paths, impact_reports, all_vulns)
             run_editor(state, adapter, manifest_info, environment_root)

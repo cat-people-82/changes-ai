@@ -43,7 +43,11 @@ def snapshot(
     manifest: ManifestInfo,
     environment_root: Path | None,
 ) -> ManifestSnapshot:
-    """Capture the manifest and current lockfile content, if present."""
+    """Capture the manifest and current lockfile content, if present.
+
+    Raises OSError if a file cannot be read; callers should handle this
+    before entering the rollback-capable apply pipeline.
+    """
     files: dict[Path, str] = {
         manifest.path: manifest.path.read_text(encoding="utf-8")
     }
@@ -75,7 +79,17 @@ def apply_remediation(
 
     The environment itself is not snapshotted or restored.
     """
-    snap = snapshot(manifest, environment_root)
+    try:
+        snap = snapshot(manifest, environment_root)
+    except OSError as exc:
+        return ApplyResult(
+            success=False,
+            dry_run=False,
+            upgrades_applied=[],
+            files_modified=[],
+            install_output="",
+            error=f"snapshot failed: {exc}",
+        )
     files_modified: list[Path] = []
 
     ok, err = adapter.dry_run_validate(manifest, upgrades, environment_root)

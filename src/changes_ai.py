@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Changes AI: Evaluates the impact of updating software packages.
+Changes AI: AI-powered CVE impact analysis and remediation planner.
 
-Reads pip or uv library dependencies from a GitHub repository,
-fetches current version numbers using libraries.io, and creates
-a version mapping and dependency chart.
+Supports local and remote source scanning for Python and NPM projects.
+Performs CVE scanning via OSV, AST-based usage analysis, LLM-backed impact
+and remediation analysis, multi-format reports (md, html, pdf, sarif, dot,
+json), and interactive or non-interactive remediation apply.
 """
 
 import argparse

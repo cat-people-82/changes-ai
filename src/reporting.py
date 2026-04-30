@@ -268,6 +268,11 @@ def _render_dependency_graph_key(report: dict) -> str | None:
     )
 
 
+def _md_cell(value) -> str:
+    """Escape pipe characters in a markdown table cell value."""
+    return str(value).replace("|", "\\|") if value is not None else ""
+
+
 def render_markdown_report(
     report: dict,
     dependency_graph_svg: str | None = None,
@@ -338,8 +343,8 @@ def render_markdown_report(
             fixed = ", ".join(vuln.get("fixed_versions") or []) or "none known"
             vuln_id = str(vuln.get("cve_id") or "UNKNOWN")
             lines.append(
-                f"| {vuln.get('severity')} | {vuln.get('package')} | "
-                f"{vuln.get('installed_version')} | {_render_osv_link(vuln_id)} | {fixed} |"
+                f"| {_md_cell(vuln.get('severity'))} | {_md_cell(vuln.get('package'))} | "
+                f"{_md_cell(vuln.get('installed_version'))} | {_render_osv_link(vuln_id)} | {_md_cell(fixed)} |"
             )
     else:
         lines.append("No cached vulnerabilities for this run.")
@@ -356,8 +361,8 @@ def render_markdown_report(
             signals = ", ".join(item.get("signals") or []) or "none"
             cadence = item.get("release_cadence_days")
             lines.append(
-                f"| {item.get('package')} | {item.get('installed_version')} | {item.get('latest_version')} | "
-                f"{item.get('latest_release_date') or 'unknown'} | {cadence if cadence is not None else 'unknown'} | {signals} |"
+                f"| {_md_cell(item.get('package'))} | {_md_cell(item.get('installed_version'))} | {_md_cell(item.get('latest_version'))} | "
+                f"{_md_cell(item.get('latest_release_date') or 'unknown')} | {cadence if cadence is not None else 'unknown'} | {_md_cell(signals)} |"
             )
     else:
         lines.append("No cached currency signals.")

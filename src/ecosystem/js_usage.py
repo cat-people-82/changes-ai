@@ -183,7 +183,7 @@ def analyse_project(source_root, packages: dict) -> UsageResult:
     for source_file in _iter_source_files(source_root):
         rel = _relative(source_file, source_root).replace("\\", "/")
         try:
-            source = source_file.read_text(encoding="utf-8", errors="replace")
+            source_bytes = source_file.read_bytes()
         except OSError:
             unresolved.append(
                 {
@@ -194,9 +194,11 @@ def analyse_project(source_root, packages: dict) -> UsageResult:
                 }
             )
             continue
-
+        try:
+            source = source_bytes.decode("utf-8", errors="replace")
+        except Exception:
+            source = source_bytes.decode("latin-1")
         parser = _parser_for_suffix(source_file.suffix)
-        source_bytes = source.encode("utf-8")
         tree = parser.parse(source_bytes)
         namespace_imports: dict[str, str] = {}
 

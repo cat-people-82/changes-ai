@@ -13,7 +13,7 @@
 
 ## News
 
-- **[02/05/2026]** Changes AI v0.7.0 released with support for NPM packages, automated remediation and GitHub Actions integration!
+- **[29/04/2026]** Changes AI v0.7.0 released with support for NPM packages, automated remediation and GitHub Actions integration!
 
 - **[27/04/2026]** Bug fix release (v0.6.3) — Shiny new `GraphViz` dependency graphs added to html and pdf reports.
 
@@ -175,6 +175,10 @@ changes-ai cache clear [--source SOURCE]
 | `--impact-analysis` | LLM-backed impact assessment for each vulnerable package (requires `--cve-scan` and `OPENAI_API_KEY`) |
 | `--allow-commercial-usage-data` | Permit source-derived usage-analysis data to be sent to a known hosted commercial LLM endpoint |
 | `--plan` | LLM remediation planner — ranked upgrade paths with exposure/breakage scores (requires `--impact-analysis`) |
+| `--apply` | After the plan is produced, open an interactive editor to review and selectively apply an upgrade path (requires `--plan` and `--source`) |
+| `--auto-apply {minimum_breakage,balanced,maximum_coverage}` | Non-interactively apply the named upgrade path (requires `--plan` and `--source`); exits with code `3` if `--max-breakage-score` is exceeded |
+| `--max-breakage-score SCORE` | Refuse to apply via `--auto-apply` if the path's breakage score exceeds SCORE (0.0–1.0); default: `1.0` |
+| `--ecosystem {python,npm}` | Override automatic ecosystem detection; useful for polyglot repos where both a Python manifest and `package.json` exist at the same depth |
 
 ## Examples
 
@@ -278,6 +282,7 @@ changes-ai --source /path/to/project \
 | `pyproject.toml` | PEP 621 (`[project.dependencies]`) and Poetry (`[tool.poetry.dependencies]`) |
 | `environment.yml` | Conda environment manifest (`dependencies`, including nested `pip:` lists) |
 | `uv.lock` | uv lockfile (TOML) |
+| `poetry.lock` | Poetry lockfile |
 
 ## Report Graph Rendering
 
@@ -390,6 +395,7 @@ urllib3    1.26.5 → 1.26.11      patch   ○ LOW (0.02)       ✓ HIGH
 | `0` | No vulnerabilities at or above the threshold |
 | `1` | Tool error |
 | `2` | One or more vulnerabilities found at or above the `--fail-on` threshold |
+| `3` | `--auto-apply` refused because the path's breakage score exceeded `--max-breakage-score` |
 
 **Sample Report** files are available in the `sample-reports/` directory.
 

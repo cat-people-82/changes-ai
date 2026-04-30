@@ -595,11 +595,10 @@ def _parse_response(
         )
         paths.append(path)
 
+    _ORDER = ["minimum_breakage", "maximum_coverage", "balanced"]
     return sorted(
         paths,
-        key=lambda path: ["minimum_breakage", "maximum_coverage", "balanced"].index(
-            path.path_type
-        ),
+        key=lambda path: _ORDER.index(path.path_type) if path.path_type in _ORDER else len(_ORDER),
     )
 
 

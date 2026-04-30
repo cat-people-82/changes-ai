@@ -295,7 +295,7 @@ class NpmAdapter:
                 return {}
             resolved: dict[str, str] = {}
             for key, entry in data.items():
-                if key == "__metadata__" or not isinstance(entry, dict):
+                if key == "__metadata" or not isinstance(entry, dict):
                     continue
                 version = entry.get("version")
                 if not isinstance(version, str):
@@ -471,6 +471,8 @@ class NpmAdapter:
                 missing_tool_hint="npm install",
             )
         if manifest.lockfile_type == "yarn_lockfile":
+            if manifest.lockfile_path is None:
+                return ApplyOutcome(success=True, output="no lockfile path", files_modified=[])
             lock_content = manifest.lockfile_path.read_text(encoding="utf-8", errors="replace")
             if lock_content.lstrip().startswith("__metadata:"):
                 return run_lock_tool(
@@ -523,7 +525,11 @@ class NpmAdapter:
         )
 
     def dry_run_validate(self, manifest, upgrades, environment_root) -> tuple[bool, str]:
-        client = NpmRegistryClient()
+        client = NpmRegistryClient(
+            cache=getattr(self, "_apply_cache", None),
+            refresh=getattr(self, "_apply_refresh", False),
+            offline=getattr(self, "_apply_offline", False),
+        )
         manifest_content = manifest.path.read_text(encoding="utf-8", errors="replace")
         current = self.parse_manifest(manifest_content, manifest.file_type)
         proposed = dict(current)
@@ -719,7 +725,7 @@ class NpmAdapter:
             except Exception:  # noqa: BLE001
                 return [GraphEdge(parent=parent, child=child) for parent, child in sorted(edges)]
             for key, entry in data.items():
-                if key == "__metadata__" or not isinstance(entry, dict):
+                if key == "__metadata" or not isinstance(entry, dict):
                     continue
                 parent = _descriptor_to_package_name(str(key).split(",", 1)[0])
                 for dep_name in (entry.get("dependencies") or {}).keys():
@@ -769,7 +775,8 @@ class NpmAdapter:
                 section_match = re.match(r'^\s*"(dependencies|devDependencies|peerDependencies|optionalDependencies)"\s*:\s*\{', line)
                 if section_match:
                     section = section_match.group(1)
-                    brace_depth = line.count("{") - line.count("}")
+                    stripped = re.sub(r'"[^"]*"', '""', line)
+                    brace_depth = stripped.count("{") - stripped.count("}")
                     rewritten.append(line)
                     continue
                 rewritten.append(line)
@@ -777,7 +784,8 @@ class NpmAdapter:
 
             rewritten_line = package_pattern.sub(rf"\g<1>{new_version}\g<2>", line)
             rewritten.append(rewritten_line)
-            brace_depth += line.count("{") - line.count("}")
+            stripped = re.sub(r'"[^"]*"', '""', line)
+            brace_depth += stripped.count("{") - stripped.count("}")
             if brace_depth <= 0:
                 section = None
         return "".join(rewritten)

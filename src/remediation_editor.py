@@ -293,7 +293,7 @@ def check_constraints(
 def toggle_current(state: EditorState) -> list[str]:
     """Toggle the package under the cursor. Returns any constraint warnings."""
     active = state.tabs[state.active_tab_index]
-    if not active.upgrades:
+    if not active.upgrades or state.cursor_index >= len(active.upgrades):
         return []
     pkg = _norm(active.upgrades[state.cursor_index].package)
     if pkg in active.selected:
