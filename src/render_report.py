@@ -38,7 +38,7 @@ except ImportError:  # pragma: no cover - direct script execution path
     from src import __version__
 
 DEFAULT_TEMPLATE = "corporate"
-REPORT_TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates" / "reports"
+REPORT_TEMPLATES_DIR = Path(__file__).resolve().parent / "templates" / "reports"
 
 SEVERITIES = ("CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN")
 EXEC_SUMMARY_META_PREFIX = "<!-- executive-summary-meta:"

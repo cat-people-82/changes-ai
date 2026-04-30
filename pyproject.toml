@@ -23,6 +23,7 @@ dependencies = [
     "tomli>=2.0.0; python_version < '3.11'",
     "weasyprint>=60",
     "markdown>=3.5",
+    "prompt_toolkit>=3.0.52",
 ]
 
 [project.optional-dependencies]
@@ -35,6 +36,9 @@ changes-ai = "changes_ai.changes_ai:main"
 
 [tool.setuptools]
 packages = ["changes_ai", "changes_ai.ecosystem"]
+
+[tool.setuptools.package-data]
+changes_ai = ["templates/reports/*.css"]
 
 [tool.setuptools.package-dir]
 changes_ai = "src"

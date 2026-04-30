@@ -5,7 +5,7 @@ All notable changes to Changes AI will be documented in this file.
 This project follows a pragmatic preview-release format. Versions are currently
 published as preview milestones until the public API and CLI behavior stabilize.
 
-## [0.7.0] - 2026-04-29
+## [0.7.0] - 29-04-2026
 
 ### Added — Ecosystem support
 
