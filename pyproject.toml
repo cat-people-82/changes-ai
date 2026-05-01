@@ -38,7 +38,7 @@ changes-ai = "changes_ai.changes_ai:main"
 packages = ["changes_ai", "changes_ai.ecosystem"]
 
 [tool.setuptools.package-data]
-changes_ai = ["templates/reports/*.css"]
+changes_ai = ["templates/reports/*.css", "templates/*.svg"]
 
 [tool.setuptools.package-dir]
 changes_ai = "src"

@@ -42,23 +42,23 @@ class UsageRecord:
 
 
 @dataclass
+class UnresolvedUsage:
+    flag: str
+    source_file: str
+    line: int
+    package: str | None = None
+
+
+@dataclass
 class UsageResult:
     records: list[UsageRecord]
-    unresolved: list[dict]
+    unresolved: list[UnresolvedUsage]
 
     def packages_used(self) -> set[str]:
         return {record.package for record in self.records}
 
     def packages_with_flags(self) -> set[str]:
-        packages: set[str] = set()
-        for item in self.unresolved:
-            if isinstance(item, dict):
-                package = item.get("package")
-            else:
-                package = getattr(item, "package", None)
-            if package:
-                packages.add(package)
-        return packages
+        return {item.package for item in self.unresolved if item.package}
 
 
 @dataclass

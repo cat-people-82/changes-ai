@@ -44,7 +44,7 @@ def detect_adapter(source: Path) -> EcosystemAdapter | None:
         adapters = ", ".join(item[2].name for item in best_matches)
         print(
             f"Warning: multiple ecosystems detected at {source} ({adapters}); "
-            "defaulting to python by registry order. '--ecosystem' will be the override in Part 4.",
+            "defaulting to python by registry order. Use --ecosystem to override.",
             file=sys.stderr,
         )
     return matches[0][2]

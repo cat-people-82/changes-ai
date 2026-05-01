@@ -30,7 +30,7 @@ SARIF_SECURITY_SEVERITY = {
 }
 OSV_VULNERABILITY_URL = "https://osv.dev/vulnerability/{vuln_id}"
 EXTERNAL_LINK_ICON_PATH = (
-    Path(__file__).resolve().parent.parent / "images" / "external-link.svg"
+    Path(__file__).resolve().parent / "templates" / "external-link.svg"
 )
 
 
@@ -73,13 +73,19 @@ def _group_by(items: list[dict], key: str) -> dict[str, list[dict]]:
 
 def _render_osv_link(vuln_id: str) -> str:
     """Render a report-safe HTML link to the OSV vulnerability page."""
-    safe_vuln_id = html.escape(vuln_id, quote=True)
+    url_vuln_id = quote(vuln_id, safe="")
+    display_vuln_id = html.escape(vuln_id)
+    icon_src = _get_external_link_icon_data_uri()
+    icon_tag = (
+        f'<img class="external-link-icon" src="{icon_src}" alt="" aria-hidden="true">'
+        if icon_src
+        else ""
+    )
     return (
-        f'<a class="osv-link" href="{OSV_VULNERABILITY_URL.format(vuln_id=safe_vuln_id)}" '
+        f'<a class="osv-link" href="{OSV_VULNERABILITY_URL.format(vuln_id=url_vuln_id)}" '
         f'target="_blank" rel="noopener noreferrer" '
-        f'title="Open {safe_vuln_id} on osv.dev in a new tab">'
-        f'{safe_vuln_id}<img class="external-link-icon" src="{_get_external_link_icon_data_uri()}" '
-        f'alt="" aria-hidden="true"></a>'
+        f'title="Open {display_vuln_id} on osv.dev in a new tab">'
+        f"{display_vuln_id}{icon_tag}</a>"
     )
 
 

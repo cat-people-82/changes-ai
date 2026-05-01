@@ -121,7 +121,7 @@ brew install graphviz
 brew install pango
 ```
 
-Or fo Linux:
+Or for Linux:
 
 ```bash
 sudo apt-get update
@@ -177,7 +177,7 @@ changes-ai cache clear [--source SOURCE]
 | `--plan` | LLM remediation planner — ranked upgrade paths with exposure/breakage scores (requires `--impact-analysis`) |
 | `--apply` | After the plan is produced, open an interactive editor to review and selectively apply an upgrade path (requires `--plan` and `--source`) |
 | `--auto-apply {minimum_breakage,balanced,maximum_coverage}` | Non-interactively apply the named upgrade path (requires `--plan` and `--source`); exits with code `3` if `--max-breakage-score` is exceeded |
-| `--max-breakage-score SCORE` | Refuse to apply via `--auto-apply` if the path's breakage score exceeds SCORE (0.0–1.0); default: `1.0` |
+| `--max-breakage-score SCORE` | Refuse to apply via `--auto-apply` if the path's breakage score exceeds SCORE (0.0–1.0); no threshold is applied unless explicitly set |
 | `--ecosystem {python,npm}` | Override automatic ecosystem detection; useful for polyglot repos where both a Python manifest and `package.json` exist at the same depth |
 
 ## Examples

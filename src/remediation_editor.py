@@ -13,14 +13,24 @@ import difflib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from src.apply import ApplyResult, UpgradeSelection, apply_remediation
-from src.ecosystem.base import EcosystemAdapter, ManifestInfo
-from src.remediation import (
-    _build_planning_context,
-    _compute_exposure_score,
-    _confidence_min,
-    _delta_rank,
-)
+try:
+    from .apply import ApplyResult, UpgradeSelection, apply_remediation
+    from .ecosystem.base import EcosystemAdapter, ManifestInfo
+    from .remediation import (
+        _build_planning_context,
+        _compute_exposure_score,
+        _confidence_min,
+        _delta_rank,
+    )
+except ImportError:  # pragma: no cover
+    from src.apply import ApplyResult, UpgradeSelection, apply_remediation
+    from src.ecosystem.base import EcosystemAdapter, ManifestInfo
+    from src.remediation import (
+        _build_planning_context,
+        _compute_exposure_score,
+        _confidence_min,
+        _delta_rank,
+    )
 
 
 # ---------------------------------------------------------------------------

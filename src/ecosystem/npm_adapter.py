@@ -5,7 +5,7 @@ import re
 import shutil
 import subprocess
 import sys
-from dataclasses import asdict
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
@@ -13,7 +13,6 @@ from urllib.parse import quote
 import requests
 
 from ..changes_ai import LibrariesIOClient
-from ..usage import _normalise as _python_normalise
 from .base import ApplyOutcome, CurrencyRecord, GraphEdge, ManifestInfo, atomic_write, run_lock_tool
 
 try:

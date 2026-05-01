@@ -9,7 +9,7 @@ from tree_sitter import Language, Parser
 import tree_sitter_javascript
 import tree_sitter_typescript
 
-from .base import UsageRecord, UsageResult
+from .base import UnresolvedUsage, UsageRecord, UsageResult
 
 JS_SUFFIXES = {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}
 SKIP_DIRS = {
@@ -119,7 +119,12 @@ def _iter_source_files(root: Path):
             yield path
 
 
+_PARSER_CACHE: dict[str, Parser] = {}
+
+
 def _parser_for_suffix(suffix: str) -> Parser:
+    if suffix in _PARSER_CACHE:
+        return _PARSER_CACHE[suffix]
     parser = Parser()
     if suffix in {".ts", ".tsx"}:
         lang_fn = (
@@ -130,6 +135,7 @@ def _parser_for_suffix(suffix: str) -> Parser:
     else:
         lang_fn = tree_sitter_javascript.language
     parser.language = Language(lang_fn())
+    _PARSER_CACHE[suffix] = parser
     return parser
 
 
@@ -178,7 +184,7 @@ def analyse_project(source_root, packages: dict) -> UsageResult:
     source_root = Path(source_root)
     lookup = _build_lookup(packages)
     records: list[UsageRecord] = []
-    unresolved: list[dict] = []
+    unresolved: list[UnresolvedUsage] = []
 
     for source_file in _iter_source_files(source_root):
         rel = _relative(source_file, source_root).replace("\\", "/")
@@ -186,12 +192,7 @@ def analyse_project(source_root, packages: dict) -> UsageResult:
             source_bytes = source_file.read_bytes()
         except OSError:
             unresolved.append(
-                {
-                    "flag": "unreadable_file",
-                    "package": None,
-                    "source_file": rel,
-                    "line": 1,
-                }
+                UnresolvedUsage(flag="unreadable_file", package=None, source_file=rel, line=1)
             )
             continue
         try:
@@ -214,12 +215,12 @@ def analyse_project(source_root, packages: dict) -> UsageResult:
 
         def add_unresolved(flag: str, package: str | None, node) -> None:
             unresolved.append(
-                {
-                    "flag": flag,
-                    "package": package,
-                    "source_file": rel,
-                    "line": node.start_point[0] + 1,
-                }
+                UnresolvedUsage(
+                    flag=flag,
+                    package=package,
+                    source_file=rel,
+                    line=node.start_point[0] + 1,
+                )
             )
 
         def visit(node) -> None:

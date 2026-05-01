@@ -12,7 +12,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from src.ecosystem.base import ApplyOutcome, EcosystemAdapter, ManifestInfo
+try:
+    from .ecosystem.base import ApplyOutcome, EcosystemAdapter, ManifestInfo
+except ImportError:  # pragma: no cover
+    from src.ecosystem.base import ApplyOutcome, EcosystemAdapter, ManifestInfo
 
 
 @dataclass
