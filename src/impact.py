@@ -12,12 +12,16 @@ import hashlib
 import os
 import re
 import sys
+import time
 from dataclasses import dataclass, field
 from urllib.parse import urlparse
 
 import requests
 
-from src.cache import SQLiteCache
+try:
+    from .cache import SQLiteCache
+except ImportError:  # pragma: no cover - direct script execution path
+    from src.cache import SQLiteCache
 
 
 # ---------------------------------------------------------------------------
@@ -638,7 +642,7 @@ class LLMClient:
             }
         )
 
-    def chat(self, messages: list) -> str | None:
+    def chat(self, messages: list, _retries: int = 3, _backoff: float = 5.0) -> str | None:
         """Call chat completions; return the assistant message content or None."""
         payload = {"model": self.model, "messages": messages}
         cache_key = hashlib.sha256(
@@ -667,25 +671,40 @@ class LLMClient:
             print(f"Warning: LLM request failed: {exc}", file=sys.stderr)
             return None
 
-        if resp.status_code != 200:
+        if resp.status_code == 200:
             try:
-                detail = resp.json().get("error", {}).get("message", resp.text[:200])
-            except ValueError:
-                detail = resp.text[:200]
+                content = resp.json()["choices"][0]["message"]["content"]
+                if self.cache is not None:
+                    self.cache.set("llm", cache_key, content)
+                return content
+            except (ValueError, KeyError, IndexError) as exc:
+                print(f"Warning: LLM response parse error: {exc}", file=sys.stderr)
+                return None
+
+        if resp.status_code in (429, 500, 502, 503, 504) and _retries > 0:
+            wait = _backoff
+            if resp.status_code == 429:
+                try:
+                    wait = float(resp.headers.get("Retry-After", _backoff))
+                except ValueError:
+                    wait = _backoff
             print(
-                f"Warning: LLM returned HTTP {resp.status_code}: {detail}",
+                f"Warning: LLM returned HTTP {resp.status_code}; retrying in {wait:.0f}s"
+                f" ({_retries} attempt(s) left)…",
                 file=sys.stderr,
             )
-            return None
+            time.sleep(wait)
+            return self.chat(messages, _retries=_retries - 1, _backoff=_backoff * 2)
 
         try:
-            content = resp.json()["choices"][0]["message"]["content"]
-            if self.cache is not None:
-                self.cache.set("llm", cache_key, content)
-            return content
-        except (ValueError, KeyError, IndexError) as exc:
-            print(f"Warning: LLM response parse error: {exc}", file=sys.stderr)
-            return None
+            detail = resp.json().get("error", {}).get("message", resp.text[:200])
+        except ValueError:
+            detail = resp.text[:200]
+        print(
+            f"Warning: LLM returned HTTP {resp.status_code}: {detail}",
+            file=sys.stderr,
+        )
+        return None
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,1 @@
+import localThing from "./local";

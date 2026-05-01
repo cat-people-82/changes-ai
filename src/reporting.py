@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import html
 import json
+from pathlib import Path
+from urllib.parse import quote
 
 from .graph import (
     build_package_states,
@@ -25,6 +28,36 @@ SARIF_SECURITY_SEVERITY = {
     "MEDIUM": "4.0",
     "LOW": "0.1",
 }
+OSV_VULNERABILITY_URL = "https://osv.dev/vulnerability/{vuln_id}"
+EXTERNAL_LINK_ICON_PATH = (
+    Path(__file__).resolve().parent / "templates" / "external-link.svg"
+)
+
+
+def _load_external_link_icon_data_uri() -> str:
+    """Return the bundled external-link SVG as a data URI."""
+    try:
+        svg_markup = EXTERNAL_LINK_ICON_PATH.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+    return f"data:image/svg+xml;utf8,{quote(svg_markup)}"
+
+
+_EXTERNAL_LINK_ICON_DATA_URI_CACHE: str | None = None
+
+
+def _get_external_link_icon_data_uri() -> str:
+    global _EXTERNAL_LINK_ICON_DATA_URI_CACHE
+    if _EXTERNAL_LINK_ICON_DATA_URI_CACHE is None:
+        _EXTERNAL_LINK_ICON_DATA_URI_CACHE = _load_external_link_icon_data_uri()
+    return _EXTERNAL_LINK_ICON_DATA_URI_CACHE
+
+
+# Keep the module-level name for backward compatibility but populate lazily on first use.
+def __getattr__(name: str):
+    if name == "EXTERNAL_LINK_ICON_DATA_URI":
+        return _get_external_link_icon_data_uri()
+    raise AttributeError(name)
 
 
 def render_json_report(report: dict) -> str:
@@ -36,6 +69,24 @@ def _group_by(items: list[dict], key: str) -> dict[str, list[dict]]:
     for item in items:
         grouped.setdefault(str(item.get(key) or "UNKNOWN"), []).append(item)
     return grouped
+
+
+def _render_osv_link(vuln_id: str) -> str:
+    """Render a report-safe HTML link to the OSV vulnerability page."""
+    url_vuln_id = quote(vuln_id, safe="")
+    display_vuln_id = html.escape(vuln_id)
+    icon_src = _get_external_link_icon_data_uri()
+    icon_tag = (
+        f'<img class="external-link-icon" src="{icon_src}" alt="" aria-hidden="true">'
+        if icon_src
+        else ""
+    )
+    return (
+        f'<a class="osv-link" href="{OSV_VULNERABILITY_URL.format(vuln_id=url_vuln_id)}" '
+        f'target="_blank" rel="noopener noreferrer" '
+        f'title="Open {display_vuln_id} on osv.dev in a new tab">'
+        f"{display_vuln_id}{icon_tag}</a>"
+    )
 
 
 def _report_dependency_graph_states(report: dict) -> dict[str, str]:
@@ -223,6 +274,11 @@ def _render_dependency_graph_key(report: dict) -> str | None:
     )
 
 
+def _md_cell(value) -> str:
+    """Escape pipe characters in a markdown table cell value."""
+    return str(value).replace("|", "\\|") if value is not None else ""
+
+
 def render_markdown_report(
     report: dict,
     dependency_graph_svg: str | None = None,
@@ -291,9 +347,10 @@ def render_markdown_report(
             ),
         ):
             fixed = ", ".join(vuln.get("fixed_versions") or []) or "none known"
+            vuln_id = str(vuln.get("cve_id") or "UNKNOWN")
             lines.append(
-                f"| {vuln.get('severity')} | {vuln.get('package')} | "
-                f"{vuln.get('installed_version')} | {vuln.get('cve_id')} | {fixed} |"
+                f"| {_md_cell(vuln.get('severity'))} | {_md_cell(vuln.get('package'))} | "
+                f"{_md_cell(vuln.get('installed_version'))} | {_render_osv_link(vuln_id)} | {_md_cell(fixed)} |"
             )
     else:
         lines.append("No cached vulnerabilities for this run.")
@@ -310,8 +367,8 @@ def render_markdown_report(
             signals = ", ".join(item.get("signals") or []) or "none"
             cadence = item.get("release_cadence_days")
             lines.append(
-                f"| {item.get('package')} | {item.get('installed_version')} | {item.get('latest_version')} | "
-                f"{item.get('latest_release_date') or 'unknown'} | {cadence if cadence is not None else 'unknown'} | {signals} |"
+                f"| {_md_cell(item.get('package'))} | {_md_cell(item.get('installed_version'))} | {_md_cell(item.get('latest_version'))} | "
+                f"{_md_cell(item.get('latest_release_date') or 'unknown')} | {cadence if cadence is not None else 'unknown'} | {_md_cell(signals)} |"
             )
     else:
         lines.append("No cached currency signals.")
@@ -533,7 +590,7 @@ def render_sarif_report(report: dict) -> str:
                 "tool": {
                     "driver": {
                         "name": "Changes AI",
-                        "informationUri": "https://github.com/",
+                        "informationUri": "https://github.com/pzanna/changes-ai",
                         "rules": rules,
                     }
                 },
@@ -550,7 +607,7 @@ def render_dot_report(report: dict) -> str:
     return render_dot_graph(
         graph.get("edges") or [],
         graph_name=str(run.get("locator") or "changes_ai"),
-        package_states=build_package_states(report),
+        package_states=_report_dependency_graph_states(report),
     )
 
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "changes-ai"
-version = "0.6.3"
+version = "0.7.0"
 description = "Evaluate package update impact with version, CVE, usage, impact, and remediation analysis."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -13,12 +13,17 @@ authors = [
     { name = "Paul Zanna" },
 ]
 dependencies = [
+    "PyYAML>=6.0",
     "openai>=2.32.0",
     "python-dotenv>=1.0.0",
     "requests>=2.28.0",
+    "tree-sitter>=0.21",
+    "tree-sitter-javascript>=0.21",
+    "tree-sitter-typescript>=0.21",
     "tomli>=2.0.0; python_version < '3.11'",
     "weasyprint>=60",
     "markdown>=3.5",
+    "prompt_toolkit>=3.0.52",
 ]
 
 [project.optional-dependencies]
@@ -27,10 +32,17 @@ dev = [
 ]
 
 [project.scripts]
-changes-ai = "src.changes_ai:main"
+changes-ai = "changes_ai.changes_ai:main"
 
 [tool.setuptools]
-packages = ["src"]
+packages = ["changes_ai", "changes_ai.ecosystem"]
+
+[tool.setuptools.package-data]
+changes_ai = ["templates/reports/*.css", "templates/*.svg"]
+
+[tool.setuptools.package-dir]
+changes_ai = "src"
+"changes_ai.ecosystem" = "src/ecosystem"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

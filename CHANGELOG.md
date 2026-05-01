@@ -5,7 +5,44 @@ All notable changes to Changes AI will be documented in this file.
 This project follows a pragmatic preview-release format. Versions are currently
 published as preview milestones until the public API and CLI behavior stabilize.
 
-## [0.6.3] - 2026-04-27
+## [0.7.0] - 29-04-2026
+
+### Added — Ecosystem support
+
+- **NPM ecosystem support.** Discovers and parses `package.json`, `package-lock.json` (v1/v2/v3), `yarn.lock` (v1 and berry), and `pnpm-lock.yaml`. Routes OSV queries via the `npm` ecosystem and uses the npm registry directly for currency checks (no API key required).
+- **JS/TS usage analysis.** Tree-sitter-based AST walker collects symbol-level imports across `.js`, `.jsx`, `.ts`, `.tsx`, `.mjs`, `.cjs` files. Static imports, CommonJS requires, and dynamic imports with literal arguments are resolved; dynamic, re-export, and member-access cases are flagged as unresolved.
+- **`EcosystemAdapter` protocol** in `src/ecosystem/`. Every ecosystem-specific operation — manifest discovery, parsing, currency, dependency graphs, usage analysis, manifest writes, lockfile regeneration, install — goes through the protocol. `PythonAdapter` and `NpmAdapter` are the first two implementations.
+
+### Added — Remediation apply
+
+- **Interactive remediation editor (`--apply`).** After the plan is produced, opens a loop where the user can customise the upgrade selection, check constraint validity in real time, preview the manifest diff, and apply the chosen path in one step.
+- **Non-interactive apply (`--auto-apply PATH_TYPE`).** Applies a named remediation path without prompting. Designed for CI. Combine with `--max-breakage-score` to refuse application above a breakage threshold (exits with code 3).
+- **Lockfile regeneration.** Both ecosystems regenerate their lockfiles after manifest writes (`uv lock` / `poetry lock` / `npm install --package-lock-only` / `yarn install --mode=update-lockfile` / `pnpm install --lockfile-only`). If the relevant tool is missing, the apply step fails clearly and rolls back.
+- **`--ecosystem` flag** to override automatic ecosystem detection in polyglot repos.
+
+### Changed
+
+- OSV queries now route per-ecosystem (was hardcoded `PyPI`). Existing Python scans behave identically; NPM scans use `ecosystem: "npm"`.
+- Python manifest writes for `pyproject.toml` use regex-based in-place rewriting to preserve formatting and comments.
+
+### Fixed
+
+- Updated installation notes for pdf/graph packages to include Linux in the README
+- Fixed broken HTML in the impact table: closing </td> tag was missing its < prefix
+  on rows with a major version delta.
+- render_dot_report DOT export now uses the same severity-only view as the HTML
+  and PDF report graphs.
+- PyYAML added to declared dependencies; missing it no longer causes a raw
+  ModuleNotFoundError on conda project scans.
+- Removed unused ThreadPoolExecutor import from changes_ai.py.
+- SARIF informationUri corrected from placeholder <https://github.com/> to
+  <https://github.com/pzanna/changes-ai>.
+- pyproject.toml packaging layout now uses [tool.setuptools.package-dir] to
+  register the package as changes_ai rather than src.
+
+---
+
+## [0.6.3] - 27-04-2026
 
 ### Added
 
@@ -18,7 +55,7 @@ published as preview milestones until the public API and CLI behavior stabilize.
 
 ---
 
-## [0.6.2] - 2026-04-26
+## [0.6.2] - 26-04-2026
 
 ### Added
 

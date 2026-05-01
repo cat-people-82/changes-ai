@@ -38,7 +38,7 @@ except ImportError:  # pragma: no cover - direct script execution path
     from src import __version__
 
 DEFAULT_TEMPLATE = "corporate"
-REPORT_TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates" / "reports"
+REPORT_TEMPLATES_DIR = Path(__file__).resolve().parent / "templates" / "reports"
 
 SEVERITIES = ("CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN")
 EXEC_SUMMARY_META_PREFIX = "<!-- executive-summary-meta:"
@@ -146,7 +146,7 @@ def _strip_executive_summary(md_text: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _wrap_severity_cells(html: str) -> str:
+def _wrap_severity_cells(html_content: str) -> str:
     """Wrap CRITICAL/HIGH/MEDIUM/LOW table cells in a styled pill, but ONLY
     in tables that have a 'Severity' column (not Confidence/Breakage).
     Also tag the parent <tr> for the left-border severity accent."""
@@ -182,10 +182,10 @@ def _wrap_severity_cells(html: str) -> str:
         styled = re.sub(r"<tr>.*?</tr>", row_repl, styled, flags=re.DOTALL)
         return styled
 
-    return re.sub(r"<table>.*?</table>", table_repl, html, flags=re.DOTALL)
+    return re.sub(r"<table>.*?</table>", table_repl, html_content, flags=re.DOTALL)
 
 
-def _wrap_remediation_paths(html: str) -> str:
+def _wrap_remediation_paths(html_content: str) -> str:
     """Convert each <h3>Path Name</h3> + following content into a styled
     .path block with header, scores, rationale, and table."""
     pattern = re.compile(
@@ -227,10 +227,10 @@ def _wrap_remediation_paths(html: str) -> str:
             "</div>"
         )
 
-    return pattern.sub(repl, html)
+    return pattern.sub(repl, html_content)
 
 
-def _wrap_limitations(html: str) -> str:
+def _wrap_limitations(html_content: str) -> str:
     """Wrap the limitations section in a styled callout."""
     pattern = re.compile(
         r"<h2>Limitations and Confidence Notes</h2>(.*?)(?=<h2>|$)",
@@ -246,10 +246,10 @@ def _wrap_limitations(html: str) -> str:
             "</div>"
         )
 
-    return pattern.sub(repl, html)
+    return pattern.sub(repl, html_content)
 
 
-def _wrap_impact_analysis(html: str) -> str:
+def _wrap_impact_analysis(html_content: str) -> str:
     """Wrap the impact evidence list in a dedicated container."""
     pattern = re.compile(
         r"(<h2>Impact Summary</h2>.*?)(<ul>.*?</ul>)(?=(?:\s*<div class=\"section-rule\"></div>\s*<h2>)|\s*<h2>|$)",
@@ -261,16 +261,21 @@ def _wrap_impact_analysis(html: str) -> str:
         list_html = match.group(2)
         return f'{before_list}<div class="impact-analysis">{list_html}</div>'
 
-    return pattern.sub(repl, html, count=1)
+    return pattern.sub(repl, html_content, count=1)
 
 
-def _add_section_rules(html: str) -> str:
+def _repair_broken_table_cell_tags(html_content: str) -> str:
+    """Repair malformed ``/td>`` or ``/th>`` sequences in generated HTML."""
+    return re.sub(r"(?<!<)/(t[dh])>", r"</\1>", html_content)
+
+
+def _add_section_rules(html_content: str) -> str:
     """Insert a gold accent rule before each h2 (except those already
     inside a .limitations wrapper, which has its own treatment)."""
     return re.sub(
         r'(?<!<div class="section-rule"></div>)\n?<h2>(?!Limitations)',
         '<div class="section-rule"></div>\n<h2>',
-        html,
+        html_content,
     )
 
 
@@ -358,6 +363,7 @@ def _build_report_html_document(md_text: str, stylesheet_markup: str) -> str:
     body_md = re.sub(r"^# .+?\n+", "", body_md, count=1)
 
     body_html = md_lib.markdown(body_md, extensions=["tables", "sane_lists"])
+    body_html = _repair_broken_table_cell_tags(body_html)
     body_html = _wrap_severity_cells(body_html)
     body_html = _wrap_remediation_paths(body_html)
     body_html = _wrap_limitations(body_html)

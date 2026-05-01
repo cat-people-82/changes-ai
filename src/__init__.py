@@ -8,34 +8,36 @@ from __future__ import annotations
 
 from importlib import import_module
 
-__version__ = "0.6.3"
+__version__ = "0.7.0"
+
+_PACKAGE_PREFIX = __name__
 
 _EXPORTS = {
-    "CacheMissError": ("src.cache", "CacheMissError"),
-    "DependencyParser": ("src.changes_ai", "DependencyParser"),
-    "LibrariesIOClient": ("src.changes_ai", "LibrariesIOClient"),
-    "PipelineOrchestrator": ("src.pipeline", "PipelineOrchestrator"),
-    "PipelineRun": ("src.pipeline", "PipelineRun"),
-    "SQLiteCache": ("src.cache", "SQLiteCache"),
-    "StageResult": ("src.pipeline", "StageResult"),
-    "VenvParser": ("src.changes_ai", "VenvParser"),
-    "analyse_currency": ("src.currency", "analyse_currency"),
-    "build_dependency_edges": ("src.graph", "build_dependency_edges"),
-    "build_version_mapping": ("src.changes_ai", "build_version_mapping"),
-    "clone_github_repo": ("src.changes_ai", "clone_github_repo"),
-    "default_cache_path": ("src.cache", "default_cache_path"),
-    "find_venv": ("src.changes_ai", "find_venv"),
-    "generate_ascii_chart": ("src.changes_ai", "generate_ascii_chart"),
-    "generate_mermaid_chart": ("src.changes_ai", "generate_mermaid_chart"),
-    "main": ("src.changes_ai", "main"),
-    "parse_github_url": ("src.changes_ai", "parse_github_url"),
-    "print_version_table": ("src.changes_ai", "print_version_table"),
-    "render_dot_graph": ("src.graph", "render_dot_graph"),
-    "render_dot_report": ("src.reporting", "render_dot_report"),
-    "render_json_report": ("src.reporting", "render_json_report"),
-    "render_markdown_report": ("src.reporting", "render_markdown_report"),
-    "render_pdf_report": ("src.reporting", "render_pdf_report"),
-    "render_sarif_report": ("src.reporting", "render_sarif_report"),
+    "CacheMissError": (f"{_PACKAGE_PREFIX}.cache", "CacheMissError"),
+    "DependencyParser": (f"{_PACKAGE_PREFIX}.changes_ai", "DependencyParser"),
+    "LibrariesIOClient": (f"{_PACKAGE_PREFIX}.changes_ai", "LibrariesIOClient"),
+    "PipelineOrchestrator": (f"{_PACKAGE_PREFIX}.pipeline", "PipelineOrchestrator"),
+    "PipelineRun": (f"{_PACKAGE_PREFIX}.pipeline", "PipelineRun"),
+    "SQLiteCache": (f"{_PACKAGE_PREFIX}.cache", "SQLiteCache"),
+    "StageResult": (f"{_PACKAGE_PREFIX}.pipeline", "StageResult"),
+    "VenvParser": (f"{_PACKAGE_PREFIX}.changes_ai", "VenvParser"),
+    "analyse_currency": (f"{_PACKAGE_PREFIX}.currency", "analyse_currency"),
+    "build_dependency_edges": (f"{_PACKAGE_PREFIX}.graph", "build_dependency_edges"),
+    "build_version_mapping": (f"{_PACKAGE_PREFIX}.changes_ai", "build_version_mapping"),
+    "clone_github_repo": (f"{_PACKAGE_PREFIX}.changes_ai", "clone_github_repo"),
+    "default_cache_path": (f"{_PACKAGE_PREFIX}.cache", "default_cache_path"),
+    "find_venv": (f"{_PACKAGE_PREFIX}.changes_ai", "find_venv"),
+    "generate_ascii_chart": (f"{_PACKAGE_PREFIX}.changes_ai", "generate_ascii_chart"),
+    "generate_mermaid_chart": (f"{_PACKAGE_PREFIX}.changes_ai", "generate_mermaid_chart"),
+    "main": (f"{_PACKAGE_PREFIX}.changes_ai", "main"),
+    "parse_github_url": (f"{_PACKAGE_PREFIX}.changes_ai", "parse_github_url"),
+    "print_version_table": (f"{_PACKAGE_PREFIX}.changes_ai", "print_version_table"),
+    "render_dot_graph": (f"{_PACKAGE_PREFIX}.graph", "render_dot_graph"),
+    "render_dot_report": (f"{_PACKAGE_PREFIX}.reporting", "render_dot_report"),
+    "render_json_report": (f"{_PACKAGE_PREFIX}.reporting", "render_json_report"),
+    "render_markdown_report": (f"{_PACKAGE_PREFIX}.reporting", "render_markdown_report"),
+    "render_pdf_report": (f"{_PACKAGE_PREFIX}.reporting", "render_pdf_report"),
+    "render_sarif_report": (f"{_PACKAGE_PREFIX}.reporting", "render_sarif_report"),
 }
 
 

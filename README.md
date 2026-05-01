@@ -1,16 +1,19 @@
 # Changes AI: AI-powered impact analysis for software package updates
 
-[![Version](https://img.shields.io/badge/version-0.6.3-blue)](https://github.com/pzanna/changes-ai)
+[![Version](https://img.shields.io/badge/version-0.7.0-blue)](https://github.com/pzanna/changes-ai)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
 [![GitHub last commit](https://img.shields.io/github/last-commit/pzanna/changes-ai)](https://github.com/pzanna/changes-ai/commits/main)
 [![GitHub issues](https://img.shields.io/github/issues/pzanna/changes-ai)](https://github.com/pzanna/changes-ai/issues)
+[![Changes AI Dependency Risk Scan](https://github.com/pzanna/Sam_Trainer/actions/workflows/changes-ai.yml/badge.svg)](https://github.com/pzanna/Sam_Trainer/actions/workflows/changes-ai.yml)
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pzanna/changes-ai/main/docs/owl.jpg" alt="Changes AI Logo" />
+  <img src="https://raw.githubusercontent.com/pzanna/changes-ai/main/images/owl.jpg" alt="Changes AI Logo" />
 </p>
 
 ## News
+
+- **[29/04/2026]** Changes AI v0.7.0 released with support for NPM packages, automated remediation and GitHub Actions integration!
 
 - **[27/04/2026]** Bug fix release (v0.6.3) — Shiny new `GraphViz` dependency graphs added to html and pdf reports.
 
@@ -118,6 +121,19 @@ brew install graphviz
 brew install pango
 ```
 
+Or for Linux:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+  graphviz \
+  libpango-1.0-0 \
+  libpangoft2-1.0-0 \
+  libharfbuzz0b \
+  libharfbuzz-subset0 \
+  fonts-dejavu-core
+```
+
 ## Usage
 
 ```bash
@@ -159,6 +175,10 @@ changes-ai cache clear [--source SOURCE]
 | `--impact-analysis` | LLM-backed impact assessment for each vulnerable package (requires `--cve-scan` and `OPENAI_API_KEY`) |
 | `--allow-commercial-usage-data` | Permit source-derived usage-analysis data to be sent to a known hosted commercial LLM endpoint |
 | `--plan` | LLM remediation planner — ranked upgrade paths with exposure/breakage scores (requires `--impact-analysis`) |
+| `--apply` | After the plan is produced, open an interactive editor to review and selectively apply an upgrade path (requires `--plan` and `--source`) |
+| `--auto-apply {minimum_breakage,balanced,maximum_coverage}` | Non-interactively apply the named upgrade path (requires `--plan` and `--source`); exits with code `3` if `--max-breakage-score` is exceeded |
+| `--max-breakage-score SCORE` | Refuse to apply via `--auto-apply` if the path's breakage score exceeds SCORE (0.0–1.0); no threshold is applied unless explicitly set |
+| `--ecosystem {python,npm}` | Override automatic ecosystem detection; useful for polyglot repos where both a Python manifest and `package.json` exist at the same depth |
 
 ## Examples
 
@@ -262,11 +282,12 @@ changes-ai --source /path/to/project \
 | `pyproject.toml` | PEP 621 (`[project.dependencies]`) and Poetry (`[tool.poetry.dependencies]`) |
 | `environment.yml` | Conda environment manifest (`dependencies`, including nested `pip:` lists) |
 | `uv.lock` | uv lockfile (TOML) |
+| `poetry.lock` | Poetry lockfile |
 
 ## Report Graph Rendering
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pzanna/changes-ai/main/docs/dependency_graph.png" alt="Dependency Graph" />
+  <img src="https://raw.githubusercontent.com/pzanna/changes-ai/main/images/dependency_graph.png" alt="Dependency Graph" />
 </p>
 
 - HTML and PDF reports try to prerender the `Dependency Graph` section as inline SVG using local Graphviz (`dot`).
@@ -374,8 +395,60 @@ urllib3    1.26.5 → 1.26.11      patch   ○ LOW (0.02)       ✓ HIGH
 | `0` | No vulnerabilities at or above the threshold |
 | `1` | Tool error |
 | `2` | One or more vulnerabilities found at or above the `--fail-on` threshold |
+| `3` | `--auto-apply` refused because the path's breakage score exceeded `--max-breakage-score` |
 
 **Sample Report** files are available in the `sample-reports/` directory.
+
+# Supported ecosystems
+
+| Ecosystem | Manifests | Lockfiles |
+|-----------|-----------|-----------|
+| Python | `requirements.txt`, `pyproject.toml`, `requirements/*.txt`, `environment.yml` | `uv.lock`, `poetry.lock` |
+| NPM | `package.json` | `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml` |
+
+Ecosystem is detected automatically from the contents of the source
+directory. For polyglot repositories with both `pyproject.toml` and
+`package.json` at the same depth, Python wins by default. Use
+`--ecosystem npm` to override.
+
+# Applying remediations
+
+## Interactive (recommended for local use)
+
+``` bash
+    changes-ai --source . --all --apply
+```
+
+After the plan is printed, an interactive editor opens. Customise the
+selection, preview the diff, then apply.
+
+## Non-interactive (for CI)
+
+``` bash
+    changes-ai --source . --all \
+        --auto-apply balanced \
+        --max-breakage-score 0.3
+```
+
+Applies the balanced path without prompting. Refuses to apply if the
+balanced path's breakage score exceeds 0.3 (exit code 3).
+
+## Lockfile regeneration
+
+After writing the manifest, Changes AI regenerates the project's
+lockfile by invoking the appropriate tool. The relevant tool must be
+on `PATH`:
+
+| Lockfile | Tool |
+|----------|------|
+| `uv.lock` | `uv lock` |
+| `poetry.lock` | `poetry lock` |
+| `package-lock.json` | `npm install --package-lock-only` |
+| `yarn.lock` | `yarn install` |
+| `pnpm-lock.yaml` | `pnpm install` |
+
+If the tool is missing, the apply step fails clearly and the manifest
+is rolled back to its previous state.
 
 ## Configuration via `.env` file
 
@@ -470,7 +543,7 @@ commercial endpoints require explicit opt-in. For stricter handling, either:
 
 ## Roadmap
 
-The current release (**v0.6.3**) covers package discovery, version mapping,
+The current release (**v0.7.0**) covers package discovery, version mapping,
 dependency charts, CVE scanning, AST-based usage analysis, LLM-backed
 impact analysis, the LLM remediation planner, SQLite-backed libraries.io, OSV,
 PyPI, and LLM response caching, offline/refresh controls, stage-focused `scan`,
