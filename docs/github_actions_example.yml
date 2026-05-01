@@ -1,0 +1,63 @@
+# .github/workflows/changes-ai.yml
+name: Changes AI Risk Scan
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write   # needed if uploading SARIF later
+
+jobs:
+  dependency-risk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out application
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Create local project venv
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
+
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          elif [ -f pyproject.toml ]; then
+            pip install .
+          fi
+
+      - name: Install Changes AI
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "git+https://github.com/pzanna/changes-ai.git@main"
+
+      - name: Run Changes AI scan
+        env:
+          LIBRARIES_IO_API_KEY: ${{ secrets.LIBRARIES_IO_API_KEY }}
+        run: |
+          mkdir -p changes-ai-reports
+          changes-ai scan \
+            --source . \
+            --cve-scan \
+            --usage-analysis \
+            --severity-threshold LOW \
+            --report-output changes-ai-reports \
+            --format md \
+            --cache-db changes-ai-cache.sqlite
+
+      - name: Upload Changes AI report
+        uses: actions/upload-artifact@v4
+        with:
+          name: changes-ai-report
+          path: changes-ai-reports/
+          if-no-files-found: warn
