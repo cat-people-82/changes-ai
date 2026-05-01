@@ -12,7 +12,6 @@ from urllib.parse import quote
 
 import requests
 
-from ..changes_ai import LibrariesIOClient
 from .base import ApplyOutcome, CurrencyRecord, GraphEdge, ManifestInfo, atomic_write, run_lock_tool
 
 try:
@@ -99,11 +98,6 @@ class NpmRegistryClient:
         self.refresh = refresh
         self.offline = offline
         self.session = requests.Session()
-        self.fallback = LibrariesIOClient(
-            cache=cache,
-            refresh=refresh,
-            offline=offline,
-        )
 
     def fetch_metadata(self, package: str) -> dict | None:
         cache_key = package.lower()
@@ -122,19 +116,19 @@ class NpmRegistryClient:
             response = self.session.get(url, timeout=30)
         except requests.RequestException as exc:
             _warn(f"npm registry request failed for {package}: {exc}")
-            return self.fallback.get_package_info(package, platform="npm")
+            return None
 
         if response.status_code == 404:
-            return self.fallback.get_package_info(package, platform="npm")
+            return None
         if response.status_code != 200:
             _warn(f"npm registry returned HTTP {response.status_code} for {package}")
-            return self.fallback.get_package_info(package, platform="npm")
+            return None
 
         try:
             payload = response.json()
         except ValueError as exc:
             _warn(f"npm registry returned invalid JSON for {package}: {exc}")
-            return self.fallback.get_package_info(package, platform="npm")
+            return None
 
         if self.cache is not None:
             self.cache.set(

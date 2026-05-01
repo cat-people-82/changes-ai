@@ -39,6 +39,7 @@ class UsageRecord:
     symbol: str
     source_file: str
     line: int
+    module: str | None = None
 
 
 @dataclass

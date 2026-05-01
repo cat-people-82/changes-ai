@@ -96,18 +96,18 @@ class LibrariesIOClient:
             return payload
         return None
 
-    def get_latest_version(self, name: str) -> Optional[str]:
-        """Return the latest stable version string for a PyPI package."""
-        info = self.get_package_info(name)
+    def get_latest_version(self, name: str, platform: str = "pypi") -> Optional[str]:
+        """Return the latest stable version string for a package on *platform*."""
+        info = self.get_package_info(name, platform=platform)
         if info:
             return info.get("latest_stable_release_number") or info.get(
                 "latest_release_number"
             )
         return None
 
-    def get_dependencies(self, name: str, version: str) -> list:
-        """Return the runtime dependency names of *name* at *version*."""
-        cache_key = f"pypi:{name.lower()}:{version}"
+    def get_dependencies(self, name: str, version: str, platform: str = "pypi") -> list:
+        """Return the runtime dependency names of *name* at *version* on *platform*."""
+        cache_key = f"{platform}:{name.lower()}:{version}"
         if self.cache is not None:
             cached = self.cache.get(
                 "libraries_io_dependencies",
@@ -118,7 +118,7 @@ class LibrariesIOClient:
             if cached is not None:
                 return list(cached)
 
-        url = f"{self.BASE_URL}/pypi/{name}/{version}/dependencies"
+        url = f"{self.BASE_URL}/{platform}/{name}/{version}/dependencies"
         response = self._get_with_retry(url)
         if response is None or response.status_code != 200:
             return []

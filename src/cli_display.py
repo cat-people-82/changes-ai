@@ -66,6 +66,7 @@ def generate_mermaid_chart(
     packages: dict,
     libraries_client: LibrariesIOClient,
     include_transitive: bool = False,
+    platform: str = "pypi",
 ) -> str:
     """Return a Mermaid flowchart string for the dependency graph.
 
@@ -94,7 +95,7 @@ def generate_mermaid_chart(
             # otherwise ask libraries.io for the latest (specifiers are not valid here).
             resolved = _concrete_version(
                 version
-            ) or libraries_client.get_latest_version(name)
+            ) or libraries_client.get_latest_version(name, platform=platform)
             if not resolved:
                 continue
             print(
@@ -102,7 +103,7 @@ def generate_mermaid_chart(
                 end="",
                 file=sys.stderr,
             )
-            deps = libraries_client.get_dependencies(name, resolved)
+            deps = libraries_client.get_dependencies(name, resolved, platform=platform)
             parent = node_id(name)
             for dep in deps:
                 child = node_id(dep)
@@ -124,6 +125,7 @@ def generate_ascii_chart(
     packages: dict,
     libraries_client: "LibrariesIOClient | None" = None,
     include_transitive: bool = False,
+    platform: str = "pypi",
 ) -> str:
     """Return an ASCII dependency tree.
 
@@ -142,7 +144,7 @@ def generate_ascii_chart(
             # otherwise ask libraries.io for the latest (specifiers are not valid here).
             resolved = _concrete_version(
                 version
-            ) or libraries_client.get_latest_version(name)
+            ) or libraries_client.get_latest_version(name, platform=platform)
             if not resolved:
                 children[name] = []
                 continue
@@ -151,7 +153,7 @@ def generate_ascii_chart(
                 end="",
                 file=sys.stderr,
             )
-            children[name] = libraries_client.get_dependencies(name, resolved)
+            children[name] = libraries_client.get_dependencies(name, resolved, platform=platform)
         print("\r\033[K", end="", file=sys.stderr)
     else:
         children = {name: [] for name in packages}

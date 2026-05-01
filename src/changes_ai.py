@@ -540,6 +540,7 @@ def main() -> None:
                     packages,
                     libraries_client=libraries_client,
                     include_transitive=args.transitive,
+                    platform=adapter.osv_ecosystem,
                 )
             except CacheMissError as exc:
                 print(f"Error: {exc}", file=sys.stderr)
@@ -576,6 +577,7 @@ def main() -> None:
                     packages,
                     libraries_client,
                     include_transitive=args.transitive,
+                    platform=adapter.osv_ecosystem,
                 )
             except CacheMissError as exc:
                 print(f"Error: {exc}", file=sys.stderr)
