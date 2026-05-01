@@ -13,7 +13,7 @@
 
 ## News
 
-- **[29/04/2026]** Changes AI v0.7.0 released with support for NPM packages, automated remediation and GitHub Actions integration!
+- **[02/05/2026]** Changes AI v0.7.0 released with support for NPM packages, automated remediation and GitHub Actions integration!
 
 - **[27/04/2026]** Bug fix release (v0.6.3) — Shiny new `GraphViz` dependency graphs added to html and pdf reports.
 
