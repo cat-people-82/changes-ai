@@ -1,14 +1,14 @@
 # Changes AI: AI-powered impact analysis for software package updates
 
-[![Version](https://img.shields.io/badge/version-0.7.0-blue)](https://github.com/pzanna/changes-ai)
+[![Version](https://img.shields.io/badge/version-0.7.0-blue)](https://github.com/cat-people-82/changes-ai)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
-[![GitHub last commit](https://img.shields.io/github/last-commit/pzanna/changes-ai)](https://github.com/pzanna/changes-ai/commits/main)
-[![GitHub issues](https://img.shields.io/github/issues/pzanna/changes-ai)](https://github.com/pzanna/changes-ai/issues)
-[![Changes AI Dependency Risk Scan](https://github.com/pzanna/Sam_Trainer/actions/workflows/changes-ai.yml/badge.svg)](https://github.com/pzanna/Sam_Trainer/actions/workflows/changes-ai.yml)
+[![GitHub last commit](https://img.shields.io/github/last-commit/cat-people-82/changes-ai)](https://github.com/cat-people-82/changes-ai/commits/main)
+[![GitHub issues](https://img.shields.io/github/issues/cat-people-82/changes-ai)](https://github.com/cat-people-82/changes-ai/issues)
+[![Changes AI Dependency Risk Scan](https://github.com/cat-people-82/Sam_Trainer/actions/workflows/changes-ai.yml/badge.svg)](https://github.com/cat-people-82/Sam_Trainer/actions/workflows/changes-ai.yml)
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pzanna/changes-ai/main/images/owl.jpg" alt="Changes AI Logo" />
+  <img src="https://raw.githubusercontent.com/cat-people-82/changes-ai/main/images/owl.jpg" alt="Changes AI Logo" />
 </p>
 
 ## News
@@ -96,7 +96,7 @@ collapse.
 Clone the repo and install it inside a virtual environment:
 
 ```bash
-git clone https://github.com/pzanna/changes-ai.git
+git clone https://github.com/cat-people-82/changes-ai.git
 cd changes-ai
 python3 -m venv .venv
 source .venv/bin/activate
@@ -287,7 +287,7 @@ changes-ai --source /path/to/project \
 ## Report Graph Rendering
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pzanna/changes-ai/main/images/dependency_graph.png" alt="Dependency Graph" />
+  <img src="https://raw.githubusercontent.com/cat-people-82/changes-ai/main/images/dependency_graph.png" alt="Dependency Graph" />
 </p>
 
 - HTML and PDF reports try to prerender the `Dependency Graph` section as inline SVG using local Graphviz (`dot`).
